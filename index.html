@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="KoE">
+    <title>KoE (Kanji of Empires) - ランチャー</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #0b0b0f;
+            color: #f5f5f5;
+        }
+        #launcherWrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e1e2f 0%, #0b0b0f 100%);
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        /* 右上 BGMトグルボタン */
+        #bgmToggleBtn {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            right: max(12px, env(safe-area-inset-right));
+            z-index: 30;
+            background: rgba(30, 30, 45, 0.85);
+            color: #ffd700;
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            border-radius: 20px;
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        #bgmToggleBtn:active {
+            transform: scale(0.94);
+        }
+        #bgmToggleBtn.muted {
+            color: #9e9e9e;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* タイトル画面 */
+        #titleScreen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 20px;
+            transition: opacity 0.7s ease;
+            background: rgba(11, 11, 15, 0.94);
+        }
+        h1 {
+            font-size: clamp(54px, 15vw, 76px);
+            letter-spacing: clamp(4px, 2vw, 8px);
+            color: #ffd700;
+            text-shadow: 0 4px 25px rgba(255, 215, 0, 0.5);
+            margin-bottom: 10px;
+            text-align: center;
+            padding-left: clamp(4px, 2vw, 8px);
+        }
+        .subtitle {
+            font-size: clamp(15px, 4.2vw, 22px);
+            color: #b0bec5;
+            letter-spacing: clamp(2px, 0.8vw, 4px);
+            margin-bottom: clamp(32px, 7vh, 50px);
+            text-align: center;
+        }
+        .start-btn {
+            background: linear-gradient(135deg, #d32f2f, #b71c1c);
+            color: white;
+            border: 2px solid #ff5252;
+            padding: 16px 44px;
+            font-size: clamp(18px, 5vw, 24px);
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(211, 47, 47, 0.5);
+            transition: transform 0.12s ease, background 0.2s ease;
+            letter-spacing: 2px;
+        }
+        .start-btn:active {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+        }
+
+        /* メニュー選択画面 */
+        #menuScreen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.7s ease;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: calc(max(16px, env(safe-area-inset-top)) + 34px)
+                     max(16px, env(safe-area-inset-right))
+                     max(16px, env(safe-area-inset-bottom))
+                     max(16px, env(safe-area-inset-left));
+        }
+        #menuScreen.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .menu-title {
+            font-size: clamp(22px, 5.5vw, 34px);
+            color: #ffd700;
+            margin-bottom: clamp(14px, 3vh, 26px);
+            letter-spacing: 2px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            width: 100%;
+            max-width: 720px;
+            margin-bottom: 16px;
+        }
+        @media (min-width: 560px) {
+            .menu-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 16px;
+            }
+        }
+
+        .menu-card {
+            background: rgba(30, 30, 45, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 12px;
+            padding: clamp(14px, 2.8vh, 22px) 18px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.12s, border-color 0.2s, background 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.45);
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 6px;
+        }
+        .menu-card:active {
+            transform: scale(0.97);
+            background: rgba(48, 48, 70, 0.95);
+            border-color: #ffd700;
+        }
+        .card-title {
+            font-size: clamp(17px, 4.2vw, 20px);
+            font-weight: bold;
+            color: #81c784;
+        }
+        .card-desc {
+            font-size: clamp(12px, 3.1vw, 13px);
+            color: #b0bec5;
+            line-height: 1.45;
+        }
+
+        .sub-links {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            max-width: 720px;
+            flex-shrink: 0;
+        }
+        .sub-btn {
+            background: rgba(0, 150, 136, 0.9);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.22);
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.12s, background 0.2s;
+            text-align: center;
+        }
+        .sub-btn:active {
+            transform: scale(0.96);
+            background: rgba(0, 137, 123, 1);
+        }
+
+        @media (orientation: landscape) and (max-height: 430px) {
+            #menuScreen {
+                justify-content: flex-start;
+                padding-top: calc(max(8px, env(safe-area-inset-top)) + 28px);
+            }
+            .menu-title {
+                font-size: 20px;
+                margin-bottom: 10px;
+            }
+            .menu-grid {
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            .menu-card {
+                padding: 10px 14px;
+                gap: 4px;
+            }
+            .card-title {
+                font-size: 16px;
+            }
+            .card-desc {
+                font-size: 11px;
+            }
+            .sub-btn {
+                padding: 8px 18px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="launcherBgm" src="bgm.mp3" loop preload="auto"></audio>
+
+    <div id="launcherWrapper">
+        <button id="bgmToggleBtn" onclick="toggleLauncherBGM()">BGM: ON</button>
+
+        <!-- タイトル画面 -->
+        <div id="titleScreen">
+            <h1>KoE</h1>
+            <div class="subtitle">Kanji of Empires RTSG</div>
+            <button class="start-btn" onclick="startGame()">ゲームスタート</button>
+        </div>
+
+        <!-- メニュー選択画面 -->
+        <div id="menuScreen">
+            <div class="menu-title">シナリオ・モード選択</div>
+            <div class="menu-grid">
+                <a href="KoEi1.html" class="menu-card">
+                    <div class="card-title">第一幕：神殿防衛戦</div>
+                    <div class="card-desc">経済を回し、神殿を3つ建てて5分間守り抜く防衛シナリオ。</div>
+                </a>
+                <a href="KoE2.html" class="menu-card">
+                    <div class="card-title" style="color:#ef5350;">第二幕：敵拠点侵略戦</div>
+                    <div class="card-desc">自動内政と敵陣攻略！敵の町の中心を攻め落とす侵略シナリオ。</div>
+                </a>
+                <a href="MapEditor1.html" target="_blank" class="menu-card">
+                    <div class="card-title" style="color:#42a5f5;">防衛戦用マップエディタ</div>
+                    <div class="card-desc">神殿防衛戦用のカスタムマップを自由に作成・保存。</div>
+                </a>
+                <a href="MapEditor2.html" target="_blank" class="menu-card">
+                    <div class="card-title" style="color:#ab47bc;">侵略戦用マップエディタ</div>
+                    <div class="card-desc">敵拠点侵略戦用のカスタムマップを自由に作成・保存。</div>
+                </a>
+            </div>
+            <div class="sub-links">
+                <a href="README.txt" target="_blank" class="sub-btn">プレイの仕方 (README)</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const launcherBgm = document.getElementById('launcherBgm');
+        let isBgmMuted = false;
+
+        document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+
+        function toggleLauncherBGM() {
+            isBgmMuted = !isBgmMuted;
+            const btn = document.getElementById('bgmToggleBtn');
+            if (isBgmMuted) {
+                btn.innerText = 'BGM: OFF';
+                btn.classList.add('muted');
+                launcherBgm.pause();
+            } else {
+                btn.innerText = 'BGM: ON';
+                btn.classList.remove('muted');
+                launcherBgm.play().catch(() => {});
+            }
+        }
+
+        function startGame() {
+            if (!isBgmMuted) {
+                launcherBgm.play().catch(() => {});
+            }
+            const titleScreen = document.getElementById('titleScreen');
+            titleScreen.style.opacity = '0';
+            titleScreen.style.pointerEvents = 'none';
+            setTimeout(() => {
+                titleScreen.style.display = 'none';
+                document.getElementById('menuScreen').classList.add('active');
+            }, 700);
+        }
+    </script>
+</body>
+</html>
