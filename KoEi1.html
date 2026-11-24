@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="KoE">
-    <title>KoE (Kanji of Empires) - 第一幕</title>
+    <title>KoE (Kanji of Empires) - iPhone</title>
     <style>
         * {
             box-sizing: border-box;
@@ -261,7 +261,7 @@
             white-space: nowrap;
         }
 
-        /* 右下：半透明浮遊インジケータ */
+        /* 右下：半透明浮遊インジケータ（コンパクト化） */
         #statusIndicator {
             position: absolute;
             bottom: max(10px, env(safe-area-inset-bottom));
@@ -455,7 +455,7 @@
             color: #fff;
             padding: 8px 10px;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 16px; /* iOS Safariの入力時自動ズーム防止 */
             user-select: text;
             -webkit-user-select: text;
         }
@@ -613,8 +613,9 @@
                 <button class="enemy-cfg-btn" onclick="closeSystemMenu(); openConfigModal();">敵軍 侵攻設定</button>
                 <button class="map-load-btn" onclick="document.getElementById('mapFileInput').click()">MAP読込 (.json)</button>
                 <button class="save-btn" onclick="closeSystemMenu(); openSaveModal();">セーブ / ロード</button>
+                <button id="sfxToggleBtn" class="bgm-btn" onclick="toggleSFX()">効果音: ON</button>
                 <button id="bgmToggleBtn" class="bgm-btn" onclick="toggleBGM()">BGM: ON</button>
-                <button class="bgm-btn" onclick="document.getElementById('bgmFileInput').click()">BGM曲選択</button>
+                <button class="bgm-btn" style="grid-column: span 2;" onclick="document.getElementById('bgmFileInput').click()">BGM曲選択 (.mp3)</button>
             </div>
             <input type="file" id="mapFileInput" accept=".json" style="display:none" onchange="loadCustomMap(event)">
             <input type="file" id="bgmFileInput" accept=".mp3,audio/*" style="display:none" onchange="loadCustomBGM(event)">
@@ -721,10 +722,10 @@
 
         const WORLD_WIDTH = 3000;
         const WORLD_HEIGHT = 3000;
-        const MIN_ZOOM = 0.25;
-        const MAX_ZOOM = 1.80;
+        const MIN_ZOOM = 0.65; // 縮小しすぎてミニマップ化しない下限
+        const MAX_ZOOM = 1.80; // 拡大上限
 
-        let camera = { x: 1000, y: 1000, zoom: 0.5 };
+        let camera = { x: 1000, y: 1000, zoom: 1.0 };
 
         function clampCamera() {
             const viewW = canvas.width / camera.zoom;
@@ -782,15 +783,18 @@
         let ghostBuildWorldX = 1300;
         let ghostBuildWorldY = 1400;
 
+        // 敵軍自動侵攻タイマー設定
         let enemyConfig = {
             firstDelayMinutes: 5,
             intervalSeconds: 60
         };
         let nextAmbushTimer = enemyConfig.firstDelayMinutes * 60;
 
+        // カスタムマップデータ保持用
         let loadedCustomMapData = null;
         let customSpawnPoints = [];
 
+        // 神殿3つ5分間保持タイマー
         const HOLD_TARGET_SECONDS = 300;
         let templeHoldSecondsRemaining = HOLD_TARGET_SECONDS;
         let isHoldingTemples = false;
@@ -816,31 +820,65 @@
         let isPaused = true;
         let keepBgmDuringRestart = false;
 
+        // コマンド確定時の波紋エフェクト
         let commandRipples = [];
 
         // ==========================================
-        // 音響制御
+        // 音響制御（iPhone / iOS Safari 音声ロック完全解除対応）
         // ==========================================
         let audioCtx = null;
         let sfxMasterGain = null;
+        let isSfxMuted = false;
         let isBgmMuted = false;
+        let isAudioUnlocked = false;
         let currentBgmObjectUrl = null;
         const gameBgm = document.getElementById('gameBgm');
         gameBgm.volume = 0.5;
 
-        function ensureAudio() {
+        // ユーザータップイベント内で同期的に呼び出してiOSのAudioContextロックを解除する
+        function unlockAudioSync() {
             if (!audioCtx) {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (AudioContextClass) {
                     audioCtx = new AudioContextClass();
                     sfxMasterGain = audioCtx.createGain();
-                    sfxMasterGain.gain.setValueAtTime(3.0, audioCtx.currentTime);
+                    sfxMasterGain.gain.setValueAtTime(isSfxMuted ? 0 : 4.5, audioCtx.currentTime);
                     sfxMasterGain.connect(audioCtx.destination);
                 }
             }
-            if (audioCtx && audioCtx.state === 'suspended') {
+            if (!audioCtx) return;
+
+            if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
                 audioCtx.resume().catch(() => {});
             }
+
+            if (!isAudioUnlocked) {
+                try {
+                    // 1. iOS Safari定番の極小無音BufferSource再生によるハードウェア解除
+                    const buffer = audioCtx.createBuffer(1, 1, 22050);
+                    const source = audioCtx.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(audioCtx.destination);
+                    if (source.start) source.start(0);
+                    else if (source.noteOn) source.noteOn(0);
+
+                    // 2. 極小オシレーター発音でオーディオセッションをアクティブ化
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.01);
+
+                    isAudioUnlocked = true;
+                } catch (e) {}
+            }
+        }
+
+        function ensureAudio() {
+            unlockAudioSync();
             if ((isPaused && !keepBgmDuringRestart) || isBgmMuted) {
                 if (gameBgm && !gameBgm.paused) {
                     gameBgm.pause();
@@ -849,6 +887,27 @@
             }
             if (gameBgm && gameBgm.paused) {
                 gameBgm.play().catch(() => {});
+            }
+        }
+
+        function toggleSFX() {
+            isSfxMuted = !isSfxMuted;
+            const btn = document.getElementById('sfxToggleBtn');
+            if (isSfxMuted) {
+                btn.innerText = '効果音: OFF';
+                btn.classList.add('muted');
+                if (sfxMasterGain && audioCtx) {
+                    sfxMasterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                }
+            } else {
+                btn.innerText = '効果音: ON';
+                btn.classList.remove('muted');
+                unlockAudioSync();
+                if (sfxMasterGain && audioCtx) {
+                    sfxMasterGain.gain.setValueAtTime(4.5, audioCtx.currentTime);
+                }
+                // 確認音として選択音を鳴らす
+                playSelectVoice();
             }
         }
 
@@ -867,6 +926,11 @@
                 }
             }
         }
+
+        // 画面のあらゆる最初のタッチでオーディオロックを即座に解除
+        ['touchstart', 'touchend', 'pointerdown', 'click'].forEach(evtName => {
+            document.addEventListener(evtName, unlockAudioSync, { passive: true });
+        });
 
         function loadCustomBGM(event) {
             const file = event.target.files[0];
@@ -1012,7 +1076,7 @@
 
             customSpawnPoints = Array.isArray(parsed.spawnPoints) ? JSON.parse(JSON.stringify(parsed.spawnPoints)) : [];
 
-            camera.zoom = 0.5;
+            camera.zoom = 1.0;
             centerCameraOn(townCenter.x + townCenter.width / 2, townCenter.y + townCenter.height / 2);
 
             updateBuildButtonsUI();
@@ -1024,14 +1088,14 @@
         // ==========================================
         function playShootSound() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 let osc = audioCtx.createOscillator();
                 let gain = audioCtx.createGain();
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(500, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.12);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
                 osc.connect(gain);
                 gain.connect(sfxMasterGain);
@@ -1042,14 +1106,14 @@
 
         function playHitSound() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 let osc = audioCtx.createOscillator();
                 let gain = audioCtx.createGain();
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(180, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
                 osc.connect(gain);
                 gain.connect(sfxMasterGain);
@@ -1060,7 +1124,7 @@
 
         function playHeroSpinSound() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
@@ -1068,8 +1132,8 @@
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(240, now);
                 osc.frequency.exponentialRampToValueAtTime(95, now + 0.16);
-                gain.gain.setValueAtTime(0.18, now);
-                gain.gain.exponentialRampToValueAtTime(0.005, now + 0.16);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
                 osc.connect(gain);
                 gain.connect(sfxMasterGain);
                 osc.start(now);
@@ -1079,7 +1143,7 @@
 
         function playSelectVoice() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
@@ -1093,7 +1157,7 @@
                 filter.frequency.setValueAtTime(650, now);
                 filter.Q.setValueAtTime(4.0, now);
                 gain.gain.setValueAtTime(0.001, now);
-                gain.gain.linearRampToValueAtTime(0.16, now + 0.03);
+                gain.gain.linearRampToValueAtTime(0.25, now + 0.03);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
                 osc.connect(filter);
                 filter.connect(gain);
@@ -1105,7 +1169,7 @@
 
         function playAckVoice() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const notes = [{ t: 0.0, f1: 210, f2: 230, d: 0.09 }, { t: 0.11, f1: 270, f2: 240, d: 0.13 }];
@@ -1120,7 +1184,7 @@
                     filter.frequency.setValueAtTime(750, now + n.t);
                     filter.Q.setValueAtTime(3.5, now + n.t);
                     gain.gain.setValueAtTime(0.001, now + n.t);
-                    gain.gain.linearRampToValueAtTime(0.16, now + n.t + 0.02);
+                    gain.gain.linearRampToValueAtTime(0.25, now + n.t + 0.02);
                     gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
                     osc.connect(filter);
                     filter.connect(gain);
@@ -1133,7 +1197,7 @@
 
         function playDeathVoice() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
@@ -1147,7 +1211,7 @@
                 filter.frequency.setValueAtTime(480, now);
                 filter.frequency.exponentialRampToValueAtTime(220, now + 0.6);
                 gain.gain.setValueAtTime(0.001, now);
-                gain.gain.linearRampToValueAtTime(0.22, now + 0.05);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.62);
                 osc.connect(filter);
                 filter.connect(gain);
@@ -1159,7 +1223,7 @@
 
         function playBeastDeathVoice() {
             ensureAudio();
-            if (!audioCtx || !sfxMasterGain) return;
+            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc1 = audioCtx.createOscillator();
@@ -1177,7 +1241,7 @@
                 filter.frequency.setValueAtTime(550, now);
                 filter.frequency.exponentialRampToValueAtTime(160, now + 0.9);
                 gain.gain.setValueAtTime(0.001, now);
-                gain.gain.linearRampToValueAtTime(0.35, now + 0.06);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.06);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.92);
                 osc1.connect(filter);
                 osc2.connect(filter);
@@ -1360,6 +1424,9 @@
         }
 
         function applyConfig() {
+            // 「適用してスタート」タップの瞬間にiOSのAudioContextを同期解除
+            unlockAudioSync();
+
             const delay = parseFloat(document.getElementById('cfgFirstDelay').value);
             const interval = parseInt(document.getElementById('cfgInterval').value);
             if (!isNaN(delay) && delay > 0) enemyConfig.firstDelayMinutes = delay;
@@ -1371,7 +1438,11 @@
                 isPaused = false;
                 keepBgmDuringRestart = false;
                 updatePauseBtnUI();
-                ensureAudio();
+            }
+            ensureAudio();
+            // スタート合図として効果音を1発鳴らし、iPhoneで鳴っていることを即座に確認できるようにする
+            if (!isSfxMuted) {
+                playAckVoice();
             }
         }
 
@@ -1565,12 +1636,18 @@
                 waters.push({ circles });
             }
 
-            for (let c = 0; c < 12; c++) {
+            // 木のデフォルト量を倍に変更（12 -> 24クラスター）、さらに水辺の上に生成されないよう重複チェック
+            for (let c = 0; c < 24; c++) {
                 let forestX = 200 + Math.random() * 2600;
                 let forestY = 200 + Math.random() * 2600;
                 if (Math.hypot(forestX - townCenter.x, forestY - townCenter.y) < 350) continue;
                 for (let i = 0; i < 15; i++) {
-                    trees.push(new Tree(forestX + (Math.random() - 0.5) * 100, forestY + (Math.random() - 0.5) * 100));
+                    let tx = forestX + (Math.random() - 0.5) * 100;
+                    let ty = forestY + (Math.random() - 0.5) * 100;
+                    // 水辺の上に木を生やさないためのチェック
+                    if (!checkWaterCollision(tx + 16, ty + 16, 16)) {
+                        trees.push(new Tree(tx, ty));
+                    }
                 }
             }
 
@@ -1581,7 +1658,7 @@
             units.push(new WildAnimal(800, 2300));
             units.push(new WildAnimal(2300, 2200));
 
-            camera.zoom = 0.5;
+            camera.zoom = 1.0;
             centerCameraOn(townCenter.x + townCenter.width / 2, townCenter.y + townCenter.height / 2);
             updateBuildButtonsUI();
         }
@@ -1818,7 +1895,6 @@
                     }
                 }
 
-                // 英雄専用 AI・行動ロジック
                 if (this.label === '英' && this.team === 'player') {
                     if (this.manualCommand) {
                         this.isResting = false;
@@ -1956,7 +2032,6 @@
                     return;
                 }
 
-                // 通常ユニットの行動ロジック
                 if (this.team === 'player' && this.label === '民' && this.targetBuilding) {
                     if (this.targetBuilding.hp <= 0 || (this.targetBuilding.isComplete && this.targetBuilding.hp >= this.targetBuilding.maxHp)) {
                         this.targetBuilding = null;
@@ -2667,7 +2742,7 @@
                 wood = gameData.wood;
                 camera.x = gameData.camera.x || 1000;
                 camera.y = gameData.camera.y || 1000;
-                camera.zoom = gameData.camera.zoom || 0.5;
+                camera.zoom = gameData.camera.zoom || 1.0;
                 clampCamera();
 
                 if (gameData.townCenterPos) {
@@ -2978,7 +3053,7 @@
         const DOUBLE_TAP_MS = 340;
         const DOUBLE_TAP_DIST_PX = 42;
 
-        let touchState = 'idle';
+        let touchState = 'idle'; // 'idle' | 'pending' | 'lasso' | 'long_pressed' | 'two_finger' | 'cooldown'
         let singleTouchId = null;
         let singleStartScreen = { x: 0, y: 0 };
         let singleCurrScreen = { x: 0, y: 0 };
