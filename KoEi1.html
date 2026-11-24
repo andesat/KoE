@@ -613,9 +613,8 @@
                 <button class="enemy-cfg-btn" onclick="closeSystemMenu(); openConfigModal();">敵軍 侵攻設定</button>
                 <button class="map-load-btn" onclick="document.getElementById('mapFileInput').click()">MAP読込 (.json)</button>
                 <button class="save-btn" onclick="closeSystemMenu(); openSaveModal();">セーブ / ロード</button>
-                <button id="sfxToggleBtn" class="bgm-btn" onclick="toggleSFX()">効果音: ON</button>
                 <button id="bgmToggleBtn" class="bgm-btn" onclick="toggleBGM()">BGM: ON</button>
-                <button class="bgm-btn" style="grid-column: span 2;" onclick="document.getElementById('bgmFileInput').click()">BGM曲選択 (.mp3)</button>
+                <button class="bgm-btn" onclick="document.getElementById('bgmFileInput').click()">BGM曲選択 (.mp3)</button>
             </div>
             <input type="file" id="mapFileInput" accept=".json" style="display:none" onchange="loadCustomMap(event)">
             <input type="file" id="bgmFileInput" accept=".mp3,audio/*" style="display:none" onchange="loadCustomBGM(event)">
@@ -828,7 +827,6 @@
         // ==========================================
         let audioCtx = null;
         let sfxMasterGain = null;
-        let isSfxMuted = false;
         let isBgmMuted = false;
         let isAudioUnlocked = false;
         let currentBgmObjectUrl = null;
@@ -842,7 +840,7 @@
                 if (AudioContextClass) {
                     audioCtx = new AudioContextClass();
                     sfxMasterGain = audioCtx.createGain();
-                    sfxMasterGain.gain.setValueAtTime(isSfxMuted ? 0 : 4.5, audioCtx.currentTime);
+                    sfxMasterGain.gain.setValueAtTime(4.5, audioCtx.currentTime);
                     sfxMasterGain.connect(audioCtx.destination);
                 }
             }
@@ -887,27 +885,6 @@
             }
             if (gameBgm && gameBgm.paused) {
                 gameBgm.play().catch(() => {});
-            }
-        }
-
-        function toggleSFX() {
-            isSfxMuted = !isSfxMuted;
-            const btn = document.getElementById('sfxToggleBtn');
-            if (isSfxMuted) {
-                btn.innerText = '効果音: OFF';
-                btn.classList.add('muted');
-                if (sfxMasterGain && audioCtx) {
-                    sfxMasterGain.gain.setValueAtTime(0, audioCtx.currentTime);
-                }
-            } else {
-                btn.innerText = '効果音: ON';
-                btn.classList.remove('muted');
-                unlockAudioSync();
-                if (sfxMasterGain && audioCtx) {
-                    sfxMasterGain.gain.setValueAtTime(4.5, audioCtx.currentTime);
-                }
-                // 確認音として選択音を鳴らす
-                playSelectVoice();
             }
         }
 
@@ -1088,7 +1065,7 @@
         // ==========================================
         function playShootSound() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 let osc = audioCtx.createOscillator();
                 let gain = audioCtx.createGain();
@@ -1106,7 +1083,7 @@
 
         function playHitSound() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 let osc = audioCtx.createOscillator();
                 let gain = audioCtx.createGain();
@@ -1124,7 +1101,7 @@
 
         function playHeroSpinSound() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
@@ -1143,7 +1120,7 @@
 
         function playSelectVoice() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
@@ -1169,7 +1146,7 @@
 
         function playAckVoice() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const notes = [{ t: 0.0, f1: 210, f2: 230, d: 0.09 }, { t: 0.11, f1: 270, f2: 240, d: 0.13 }];
@@ -1197,7 +1174,7 @@
 
         function playDeathVoice() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
@@ -1223,7 +1200,7 @@
 
         function playBeastDeathVoice() {
             ensureAudio();
-            if (isSfxMuted || !audioCtx || !sfxMasterGain) return;
+            if (!audioCtx || !sfxMasterGain) return;
             try {
                 const now = audioCtx.currentTime;
                 const osc1 = audioCtx.createOscillator();
@@ -1441,9 +1418,7 @@
             }
             ensureAudio();
             // スタート合図として効果音を1発鳴らし、iPhoneで鳴っていることを即座に確認できるようにする
-            if (!isSfxMuted) {
-                playAckVoice();
-            }
+            playAckVoice();
         }
 
         function savePreset() {
