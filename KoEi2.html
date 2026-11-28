@@ -1,0 +1,3721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="KoE2">
+    <title>KoE2 第二幕：敵拠点侵略戦 (iPhone)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            background-color: #111;
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        #gameWrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-color: #31572c;
+            touch-action: none;
+        }
+
+        /* 上部メインバー（Safe Area対応） */
+        #topBar {
+            position: absolute;
+            top: max(8px, env(safe-area-inset-top));
+            left: max(8px, env(safe-area-inset-left));
+            right: max(8px, env(safe-area-inset-right));
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        #topUI {
+            pointer-events: auto;
+            background-color: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            padding: 6px 9px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            overflow-x: auto;
+            max-width: calc(100% - 118px);
+            white-space: nowrap;
+        }
+        #topUI::-webkit-scrollbar {
+            display: none;
+        }
+
+        #topRightControls {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+
+        button {
+            background-color: rgba(63, 81, 181, 0.9);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.15s;
+            white-space: nowrap;
+        }
+        button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        button:disabled {
+            background-color: rgba(85, 85, 85, 0.65);
+            color: rgba(200, 200, 200, 0.45);
+            border-color: rgba(255, 255, 255, 0.08);
+            cursor: not-allowed;
+        }
+
+        button.hero-btn { background-color: rgba(230, 81, 0, 0.92); }
+        button.siege-btn { background-color: rgba(96, 125, 139, 0.92); }
+        button.temple-btn { background-color: rgba(156, 39, 176, 0.92); }
+        button.pause-btn {
+            background-color: rgba(21, 101, 192, 0.92);
+            padding: 7px 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        button.pause-btn.paused {
+            background-color: rgba(230, 81, 0, 0.95);
+            border-color: #ffeb3b;
+        }
+        button.settings-btn {
+            background-color: rgba(69, 90, 100, 0.92);
+            padding: 7px 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        button.bgm-btn { background-color: rgba(0, 131, 143, 0.92); }
+        button.bgm-btn.off { background-color: rgba(85, 85, 85, 0.9); color: #bbb; }
+
+        /* 左端：部隊グループボタン（1〜5） */
+        #groupBar {
+            position: absolute;
+            left: max(8px, env(safe-area-inset-left));
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 95;
+        }
+        .grp-btn {
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border-radius: 8px;
+            background-color: rgba(25, 25, 25, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #bbb;
+            font-size: 13px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .grp-btn.has-units {
+            background-color: rgba(30, 136, 229, 0.78);
+            border-color: #90caf9;
+            color: #fff;
+        }
+
+        /* 神殿建設位置確認フローティングバー */
+        #templeConfirmBar {
+            display: none;
+            position: absolute;
+            top: calc(max(8px, env(safe-area-inset-top)) + 48px);
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(20, 20, 20, 0.92);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid #ba68c8;
+            border-radius: 10px;
+            padding: 7px 12px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            align-items: center;
+            gap: 8px;
+            z-index: 150;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65);
+            white-space: nowrap;
+        }
+
+        /* マップ観戦用下部バー */
+        #viewMapBar {
+            display: none;
+            position: absolute;
+            top: calc(max(8px, env(safe-area-inset-top)) + 48px);
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(20, 24, 20, 0.92);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid #81c784;
+            border-radius: 10px;
+            padding: 7px 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75);
+            z-index: 1600;
+            align-items: center;
+            gap: 8px;
+            color: #f1f1f1;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        #viewMapBar button {
+            background-color: #2e7d32;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* 左下：視点ショートカット・操作補助 */
+        #leftBottomControls {
+            position: absolute;
+            bottom: max(10px, env(safe-area-inset-bottom));
+            left: max(8px, env(safe-area-inset-left));
+            display: flex;
+            gap: 6px;
+            z-index: 100;
+        }
+        .nav-btn {
+            background-color: rgba(30, 35, 32, 0.82);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0f2f1;
+            padding: 7px 10px;
+            font-size: 11px;
+            border-radius: 8px;
+        }
+
+        /* 右下インジケータ（コンパクト版） */
+        #rightBottomHUD {
+            position: absolute;
+            right: max(8px, env(safe-area-inset-right));
+            bottom: max(10px, env(safe-area-inset-bottom));
+            width: 176px;
+            background-color: rgba(18, 22, 18, 0.74);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 10px;
+            padding: 8px 10px;
+            color: #f1f1f1;
+            font-size: 11px;
+            line-height: 1.42;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            z-index: 90;
+        }
+
+        .hud-time-bar-wrap {
+            width: 100%;
+            height: 17px;
+            background-color: #2b2b2b;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        .hud-time-bar-fill {
+            height: 100%;
+            width: 100%;
+            background-color: #43a047;
+            transition: width 0.25s linear, background-color 0.3s;
+        }
+
+        .hud-time-text {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .hud-divider {
+            border: none;
+            border-top: 1px dashed rgba(255, 255, 255, 0.25);
+            margin: 4px 0;
+        }
+
+        .hud-section-title {
+            font-weight: bold;
+            color: #90caf9;
+            font-size: 10.5px;
+        }
+        .hud-section-title.enemy {
+            color: #ef9a9a;
+        }
+
+        .hud-row {
+            display: flex;
+            justify-content: space-between;
+            padding-left: 2px;
+        }
+
+        /* 設定モーダル（タッチスクロール対応） */
+        #settingsModal {
+            display: flex;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh;
+            background-color: rgba(0, 0, 0, 0.84);
+            z-index: 2500;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            touch-action: pan-y;
+        }
+
+        .settings-box {
+            background-color: #1c201d;
+            border: 2px solid #4caf50;
+            border-radius: 12px;
+            padding: 16px 18px;
+            width: min(560px, 95vw);
+            max-height: 90dvh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85);
+            color: #f5f5f5;
+            font-size: 12.5px;
+        }
+
+        .settings-header {
+            font-size: 17px;
+            font-weight: bold;
+            color: #81c784;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+
+        .setting-group {
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-group-title {
+            font-weight: bold;
+            color: #ffeb3b;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .setting-note {
+            font-size: 11px;
+            color: #cccccc;
+            margin: 2px 0 4px 6px;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin: 5px 0 5px 6px;
+            gap: 6px;
+        }
+
+        .setting-item input[type="range"] {
+            width: 140px;
+            accent-color: #4caf50;
+        }
+
+        .setting-val {
+            font-weight: bold;
+            color: #81c784;
+            min-width: 74px;
+            text-align: right;
+            display: inline-block;
+        }
+
+        .wood-scale-labels {
+            display: flex;
+            justify-content: space-between;
+            width: 140px;
+            font-size: 9.5px;
+            color: #bdbdbd;
+            margin-top: 2px;
+        }
+
+        .io-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            margin-left: 6px;
+        }
+
+        .io-row input[type="text"],
+        .io-row select {
+            flex: 1;
+            min-width: 0;
+            background-color: #2b302c;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 6px;
+            padding: 7px 8px;
+            font-size: 12px;
+        }
+
+        .io-row button {
+            padding: 7px 10px;
+            font-size: 12px;
+            background-color: #37474f;
+        }
+
+        .touch-guide-box {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 11px;
+            line-height: 1.5;
+            color: #cfd8dc;
+            margin-top: 6px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .start-btn {
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 13.5px;
+            font-weight: bold;
+            border-radius: 8px;
+        }
+
+        .resume-btn {
+            background-color: #1565c0;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 13.5px;
+            font-weight: bold;
+            border-radius: 8px;
+        }
+
+        .menu-back-btn {
+            background-color: #546e7a;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 8px;
+        }
+
+        /* 結果表示モーダル（AoE2風戦績） */
+        #gameOverModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh;
+            background-color: rgba(0, 0, 0, 0.84);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            touch-action: pan-y;
+        }
+        .result-box {
+            background-color: #181c19;
+            border: 2px solid #b71c1c;
+            border-radius: 12px;
+            padding: 16px 18px;
+            width: min(680px, 95vw);
+            max-height: 90dvh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            text-align: center;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.85);
+            color: #f5f5f5;
+        }
+        .result-box.victory {
+            border-color: #4caf50;
+        }
+        .result-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ef5350;
+            margin-bottom: 4px;
+            letter-spacing: 2px;
+        }
+        .result-box.victory .result-title {
+            color: #81c784;
+        }
+        .result-desc {
+            font-size: 12px;
+            color: #cfd8dc;
+            margin-bottom: 12px;
+        }
+
+        .score-banner {
+            background: linear-gradient(90deg, rgba(255,215,0,0.12), rgba(255,215,0,0.24), rgba(255,215,0,0.12));
+            border: 1px solid rgba(255, 215, 0, 0.45);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 8px;
+        }
+        .score-main {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffd54f;
+        }
+        .score-rank {
+            font-size: 20px;
+            font-weight: bold;
+            color: #81c784;
+        }
+        .score-sub {
+            font-size: 11px;
+            color: #e0e0e0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+            text-align: left;
+            margin-bottom: 14px;
+        }
+        .stat-card {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 11.5px;
+        }
+        .stat-card-title {
+            font-weight: bold;
+            font-size: 12.5px;
+            padding-bottom: 4px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .stat-card-title.mil { color: #ef9a9a; }
+        .stat-card-title.prod { color: #90caf9; }
+        .stat-card-title.econ { color: #a5d6a7; }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            color: #e0e0e0;
+        }
+        .stat-line span:last-child {
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .result-actions {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 6px;
+        }
+        .result-btn {
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 8px;
+            border: none;
+            color: #fff;
+        }
+        .result-btn.map-btn { background-color: #0277bd; }
+        .result-btn.retry-btn { background-color: #2e7d32; }
+        .result-btn.menu-btn { background-color: #546e7a; }
+    </style>
+</head>
+<body>
+
+    <audio id="bgmAudio" src="bgm.mp3" loop preload="auto"></audio>
+
+    <div id="gameWrapper">
+        <!-- 上部メインバー -->
+        <div id="topBar">
+            <div id="topUI">
+                <button onclick="orderTransform('槍')">槍(80)</button>
+                <button onclick="orderTransform('弓')">弓(100)</button>
+                <button onclick="orderTransform('馬')">馬(120)</button>
+                <button class="hero-btn" onclick="orderTransform('英')">英雄(1000)</button>
+                <button class="siege-btn" onclick="orderTransform('投')">大盾(800)</button>
+                <button class="temple-btn" onclick="prepareTempleBuild()">神殿(2000)</button>
+            </div>
+            <div id="topRightControls">
+                <button id="pauseBtn" class="pause-btn" onclick="togglePause()">停止</button>
+                <button class="settings-btn" onclick="openSettingsModal()">設定</button>
+            </div>
+        </div>
+
+        <!-- 左端：グループボタン（タップで呼出、長押しで登録） -->
+        <div id="groupBar">
+            <button class="grp-btn" data-grp="1">1</button>
+            <button class="grp-btn" data-grp="2">2</button>
+            <button class="grp-btn" data-grp="3">3</button>
+            <button class="grp-btn" data-grp="4">4</button>
+            <button class="grp-btn" data-grp="5">5</button>
+        </div>
+
+        <!-- 神殿建設位置確認バー -->
+        <div id="templeConfirmBar">
+            <span>神殿予定地をタップで移動</span>
+            <button style="background:#2e7d32; padding:6px 12px;" onclick="confirmTemplePlacement()">ここに建設</button>
+            <button style="background:#c62828; padding:6px 10px;" onclick="cancelTemplePlacement()">中止</button>
+        </div>
+
+        <!-- マップを眺める時のバー -->
+        <div id="viewMapBar">
+            <span>観戦中（2本指で移動/拡大縮小）</span>
+            <button type="button" onclick="exitViewMapMode()">結果へ戻る</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- 左下：視点ジャンプ・隊列指示補助 -->
+        <div id="leftBottomControls">
+            <button class="nav-btn" onclick="focusPlayerArmy()">自軍へ</button>
+            <button class="nav-btn" onclick="focusEnemyBase()">敵本陣へ</button>
+        </div>
+
+        <!-- 右下インジケータ -->
+        <div id="rightBottomHUD">
+            <div class="hud-time-bar-wrap">
+                <div class="hud-time-bar-fill" id="hudTimeBarFill"></div>
+                <div class="hud-time-text" id="hudTimeText">30:00</div>
+            </div>
+            <div class="hud-section-title enemy">＜敵軍＞</div>
+            <div class="hud-row"><span>・塔</span><span id="hudEnemyTowers">（5/5）</span></div>
+            <div class="hud-row"><span>・神殿</span><span id="hudEnemyShrines">（3/3）</span></div>
+            <div class="hud-row"><span>・町の中心</span><span id="hudEnemyTC">（1/1）</span></div>
+            <hr class="hud-divider">
+            <div class="hud-section-title">＜自軍＞</div>
+            <div class="hud-row"><span>・工作兵</span><span id="hudPlayerWorker">60 名</span></div>
+            <div class="hud-row"><span>・槍 / 弓 / 馬</span><span id="hudPlayerSoldiers">0 / 0 / 0</span></div>
+            <div class="hud-row"><span>・英雄 / 大盾</span><span id="hudPlayerSpecial">0 名 / 0 台</span></div>
+            <div class="hud-row" style="font-weight:bold; color:#a5d6a7;"><span>・総人口</span><span id="hudPlayerTotal">60 / 60</span></div>
+        </div>
+    </div>
+
+    <!-- ゲーム開始・設定モーダル -->
+    <div id="settingsModal">
+        <div class="settings-box">
+            <div class="settings-header">第二幕：敵拠点侵略戦 設定</div>
+
+            <div class="setting-group">
+                <div class="setting-group-title">■攻略制限時間</div>
+                <div class="setting-item">
+                    <span>制限時間（10〜60分）</span>
+                    <div>
+                        <input type="range" id="optTimeLimit" min="10" max="60" value="30" oninput="syncSettingLabels()">
+                        <span class="setting-val" id="valTimeLimit">30分</span>
+                    </div>
+                </div>
+                <div class="setting-note">・全ての塔・神殿3つ・町の中心1つ・敵軍ユニットの殲滅で勝利</div>
+            </div>
+
+            <div class="setting-group">
+                <div class="setting-group-title">■自軍設定（現地調達サバイバル）</div>
+                <div class="setting-item">
+                    <span>自軍の全兵士の人数（20〜200名）</span>
+                    <div>
+                        <input type="range" id="optMaxPop" min="20" max="200" step="5" value="60" oninput="syncSettingLabels()">
+                        <span class="setting-val" id="valMaxPop">60名</span>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <span>神殿での工作兵の復活速度（10〜20秒）</span>
+                    <div>
+                        <input type="range" id="optPlayerRespawn" min="10" max="20" value="15" oninput="syncSettingLabels()">
+                        <span class="setting-val" id="valPlayerRespawn">15秒</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <div class="setting-group-title">■敵軍設定（時間駐留＆一斉出現）</div>
+                <div class="setting-item">
+                    <span>敵神殿に1名ずつ配置する間隔（10〜120秒）</span>
+                    <div>
+                        <input type="range" id="optEnemySpawn" min="10" max="120" step="5" value="60" oninput="syncSettingLabels()">
+                        <span class="setting-val" id="valEnemySpawn">60秒</span>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <span>敵神殿の駐留兵上限（8〜64名）</span>
+                    <div>
+                        <input type="range" id="optEnemyShrineCap" min="8" max="64" step="1" value="18" oninput="syncSettingLabels()">
+                        <span class="setting-val" id="valEnemyShrineCap">18名</span>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <span>防衛塔の数（2〜10塔）</span>
+                    <div>
+                        <input type="range" id="optTowerCount" min="2" max="10" value="5" oninput="syncSettingLabels()">
+                        <span class="setting-val" id="valTowerCount">5塔</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <div class="setting-group-title">■資源（木材）＆サウンド</div>
+                <div class="setting-item" style="align-items:flex-start;">
+                    <span style="padding-top:2px;">木材の量（1〜7）</span>
+                    <div style="display:flex; align-items:flex-start; gap:6px;">
+                        <div>
+                            <input type="range" id="optWoodLevel" min="1" max="7" step="1" value="4" oninput="syncSettingLabels()">
+                            <div class="wood-scale-labels">
+                                <span>1:極少</span>
+                                <span>4:普通</span>
+                                <span>7:極多</span>
+                            </div>
+                        </div>
+                        <span class="setting-val" id="valWoodLevel" style="min-width:88px;">4（普通）</span>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <span>BGM設定</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button type="button" id="bgmToggleBtn" class="bgm-btn" style="padding:5px 10px;" onclick="toggleBGM()">BGM: ON</button>
+                        <input type="range" id="bgmVolumeSlider" min="0" max="100" value="40" style="width:95px;" oninput="updateBGMVolume(this.value)">
+                        <span id="bgmVolumeLabel" style="min-width:30px; font-weight:bold; color:#80deea;">40%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <div class="setting-group-title">■作成したマップの読込 / 設定プロファイル</div>
+                <div class="io-row">
+                    <input type="text" id="mapFileNameInput" placeholder="標準マップ（デフォルト）" readonly>
+                    <button type="button" onclick="document.getElementById('mapFileInput').click()">MAP開く</button>
+                    <input type="file" id="mapFileInput" accept=".json" style="display:none" onchange="handleMapFileLoad(event)">
+                </div>
+                <div class="io-row">
+                    <select id="profileSelect"></select>
+                    <button type="button" onclick="createNewProfile()">新規</button>
+                    <button type="button" onclick="saveCurrentProfile()">保存</button>
+                    <button type="button" onclick="loadSelectedProfile()">読込</button>
+                </div>
+            </div>
+
+            <div class="touch-guide-box">
+                <strong>【iPhone 操作ガイド】</strong>
+                1本指タップ:選択 / ダブルタップ:同種一括選択 / 1本指ドラッグ:投げ縄複数選択 / 1本指長押し(0.35秒):移動・攻撃・伐採・建設 / 2本指ドラッグ＆ピンチ:視点移動・拡大縮小 / 左端1〜5ボタン:長押し登録・タップ呼出
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="start-btn" id="btnStartNewGame" onclick="applySettingsAndStart(true)">この設定でゲーム開始</button>
+                <button type="button" class="resume-btn" id="btnResumeGame" style="display:none;" onclick="applySettingsAndStart(false)">設定を反映して再開</button>
+                <button type="button" class="menu-back-btn" onclick="location.href='index_5.html'">タイトルへ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 結果表示モーダル -->
+    <div id="gameOverModal">
+        <div class="result-box" id="resultBox">
+            <div class="result-title" id="resTitle">GAME OVER</div>
+            <div class="result-desc" id="resDesc">敵の要塞に敗北しました。</div>
+
+            <div class="score-banner">
+                <div>
+                    <div class="score-sub">総合スコア</div>
+                    <div class="score-main" id="resTotalScore">0 pt</div>
+                </div>
+                <div>
+                    <div class="score-sub">軍事 / 生産 / 経済</div>
+                    <div class="score-sub" id="resSubScores" style="font-weight:bold; color:#fff; margin-top:3px;">0 / 0 / 0</div>
+                </div>
+                <div>
+                    <div class="score-sub">総合評価</div>
+                    <div class="score-rank" id="resRank">B</div>
+                </div>
+            </div>
+
+            <div class="stats-grid" id="resStatsGrid"></div>
+
+            <div class="result-actions">
+                <button type="button" class="result-btn map-btn" onclick="enterViewMapMode()">マップを眺める</button>
+                <button type="button" class="result-btn retry-btn" onclick="applySettingsAndStart(true)">再挑戦</button>
+                <button type="button" class="result-btn menu-btn" onclick="location.href='index_5.html'">メニューへ</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const WORLD_WIDTH = 3000;
+        const WORLD_HEIGHT = 3000;
+        const MIN_ZOOM = 0.35;
+        const MAX_ZOOM = 1.85;
+
+        let camera = { x: 200, y: 1800, zoom: 0.85 };
+
+        function clampCamera() {
+            const viewW = canvas.width / camera.zoom;
+            const viewH = canvas.height / camera.zoom;
+            const maxX = Math.max(0, WORLD_WIDTH - viewW);
+            const maxY = Math.max(0, WORLD_HEIGHT - viewH);
+            camera.x = Math.max(0, Math.min(maxX, camera.x));
+            camera.y = Math.max(0, Math.min(maxY, camera.y));
+        }
+
+        function centerCameraOn(wx, wy) {
+            const viewW = canvas.width / camera.zoom;
+            const viewH = canvas.height / camera.zoom;
+            camera.x = wx - viewW / 2;
+            camera.y = wy - viewH / 2;
+            clampCamera();
+        }
+
+        function screenToWorld(sx, sy) {
+            return {
+                x: sx / camera.zoom + camera.x,
+                y: sy / camera.zoom + camera.y
+            };
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            clampCamera();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function focusPlayerArmy() {
+            const alive = units.filter(u => u.team === 'player' && u.hp > 0);
+            if (alive.length > 0) {
+                const avgX = alive.reduce((s, u) => s + u.x, 0) / alive.length;
+                const avgY = alive.reduce((s, u) => s + u.y, 0) / alive.length;
+                centerCameraOn(avgX, avgY);
+            } else {
+                centerCameraOn(450, 2500);
+            }
+        }
+
+        function focusEnemyBase() {
+            centerCameraOn(enemyTownCenter.x + enemyTownCenter.width / 2, enemyTownCenter.y + enemyTownCenter.height / 2);
+        }
+
+        const COSTS = { '槍': 80, '弓': 100, '馬': 120, '英': 1000, '投': 800, '神': 2000 };
+
+        const WOOD_LEVEL_LABELS = {
+            1: '1（非常に少ない）',
+            2: '2（少ない）',
+            3: '3（やや少ない）',
+            4: '4（普通）',
+            5: '5（やや多い）',
+            6: '6（多い）',
+            7: '7（非常に多い）'
+        };
+
+        let gameSettings = {
+            timeLimitMinutes: 30,
+            maxPopulation: 60,
+            playerRespawnSec: 15,
+            enemySpawnSec: 60,
+            enemyShrineCap: 18,
+            towerCount: 5,
+            woodLevel: 4
+        };
+
+        let battleStats = {};
+        function resetBattleStats() {
+            battleStats = {
+                createdSpear: 0,
+                createdArcher: 0,
+                createdCavalry: 0,
+                createdHero: 0,
+                createdShield: 0,
+                builtShrines: 0,
+                respawnedWorkers: 0,
+                woodHarvested: 0,
+                killedEnemySpear: 0,
+                killedEnemyArcher: 0,
+                killedEnemyCavalry: 0,
+                killedEnemyOther: 0,
+                lostPlayerUnits: 0,
+                lostPlayerShields: 0
+            };
+        }
+        resetBattleStats();
+
+        let customMapData = null;
+
+        let hasGameStarted = false;
+        let isPaused = true;
+        let isGameOver = false;
+        let isViewingMap = false;
+        let bgmEnabled = true;
+        let bgmVolume = 0.4;
+
+        let totalTimeFrames = 30 * 60 * 60;
+        let remainingTimeFrames = 30 * 60 * 60;
+
+        let maxPopulation = 60;
+        let shrineRespawnTimer = 0;
+
+        let heroProgress = 0;
+        let siegeProgress = 0;
+        let woodCutSoundTimer = 0;
+        let waitingForTempleTarget = false;
+        let templePreviewWorldX = 500;
+        let templePreviewWorldY = 2400;
+
+        let commandRipples = [];
+
+        const controlGroups = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[], 8:[], 9:[] };
+
+        let playerShrines = [];
+
+        const DEFAULT_TC_CENTER = { x: 2250, y: 750 };
+        let enemyTownCenter = { x: 2180, y: 700, width: 140, height: 100, hp: 1500, maxHp: 1500, name: '敵 町の中心', range: 720, attack: 6, attackCooldown: 0, burstQueue: [] };
+        let enemyShrines = [];
+        let enemyTowers = [];
+        let initialEnemyTowerTotal = 5;
+        const initialEnemyShrineTotal = 3;
+        const initialEnemyTCTotal = 1;
+
+        const DEFAULT_TOWER_POSITIONS = [
+            { x: 1850, y: 1150, hp: 600 },
+            { x: 2050, y: 950,  hp: 500 },
+            { x: 2390, y: 950,  hp: 500 },
+            { x: 2050, y: 550,  hp: 500 },
+            { x: 2390, y: 550,  hp: 500 },
+            { x: 1750, y: 850,  hp: 500 },
+            { x: 2650, y: 850,  hp: 500 },
+            { x: 2220, y: 420,  hp: 500 },
+            { x: 1920, y: 1050, hp: 500 },
+            { x: 2520, y: 1050, hp: 500 }
+        ];
+
+        let units = [];
+        let trees = [];
+        let arrows = [];
+
+        // ==========================================
+        // iOS Safari 音声ロック解除＆BGM/SFX制御
+        // ==========================================
+        let audioCtx = null;
+        let sfxMasterGain = null;
+        let isAudioUnlocked = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                    sfxMasterGain = audioCtx.createGain();
+                    sfxMasterGain.gain.value = 3.2;
+
+                    const compressor = audioCtx.createDynamicsCompressor();
+                    compressor.threshold.setValueAtTime(-14, audioCtx.currentTime);
+                    compressor.knee.setValueAtTime(12, audioCtx.currentTime);
+                    compressor.ratio.setValueAtTime(6, audioCtx.currentTime);
+                    compressor.attack.setValueAtTime(0.005, audioCtx.currentTime);
+                    compressor.release.setValueAtTime(0.12, audioCtx.currentTime);
+
+                    sfxMasterGain.connect(compressor);
+                    compressor.connect(audioCtx.destination);
+                }
+            }
+            if (!audioCtx) return;
+
+            if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+                audioCtx.resume().catch(() => {});
+            }
+
+            if (!isAudioUnlocked) {
+                try {
+                    const buffer = audioCtx.createBuffer(1, 1, 22050);
+                    const source = audioCtx.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(audioCtx.destination);
+                    if (source.start) source.start(0);
+                    else if (source.noteOn) source.noteOn(0);
+                    isAudioUnlocked = true;
+                } catch (e) {}
+            }
+        }
+
+        ['touchstart', 'touchend', 'pointerdown', 'click'].forEach(evtName => {
+            document.addEventListener(evtName, initAudio, { passive: true });
+        });
+
+        function updateBGMVolume(val) {
+            const num = Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+            bgmVolume = num / 100;
+            const audio = document.getElementById('bgmAudio');
+            audio.volume = bgmVolume;
+            document.getElementById('bgmVolumeLabel').innerText = num + '%';
+        }
+
+        function toggleBGM() {
+            initAudio();
+            bgmEnabled = !bgmEnabled;
+            const btn = document.getElementById('bgmToggleBtn');
+            const audio = document.getElementById('bgmAudio');
+            audio.volume = bgmVolume;
+            if (bgmEnabled) {
+                btn.innerText = 'BGM: ON';
+                btn.classList.remove('off');
+                if (hasGameStarted && !isPaused) {
+                    audio.play().catch(() => {});
+                }
+            } else {
+                btn.innerText = 'BGM: OFF';
+                btn.classList.add('off');
+                audio.pause();
+            }
+        }
+
+        function startBGMIfEnabled() {
+            initAudio();
+            const audio = document.getElementById('bgmAudio');
+            audio.volume = bgmVolume;
+            if (bgmEnabled && !isPaused) {
+                audio.play().catch(() => {});
+            } else {
+                audio.pause();
+            }
+        }
+
+        function updatePauseBtnUI() {
+            const btn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                btn.innerText = '再開';
+                btn.classList.add('paused');
+            } else {
+                btn.innerText = '停止';
+                btn.classList.remove('paused');
+            }
+        }
+
+        function togglePause() {
+            if (isGameOver || !hasGameStarted) return;
+            initAudio();
+            isPaused = !isPaused;
+            resetTouchGesture();
+            updatePauseBtnUI();
+            const audio = document.getElementById('bgmAudio');
+            if (isPaused) {
+                if (audio) audio.pause();
+            } else {
+                startBGMIfEnabled();
+            }
+        }
+
+        // --- 設定モーダル・プロファイル保存/読込・マップ読込 ---
+        const PROFILE_STORAGE_KEY = 'koe2_setting_profiles_v1';
+
+        function syncSettingLabels() {
+            document.getElementById('valTimeLimit').innerText = document.getElementById('optTimeLimit').value + '分';
+            document.getElementById('valMaxPop').innerText = document.getElementById('optMaxPop').value + '名';
+            document.getElementById('valPlayerRespawn').innerText = document.getElementById('optPlayerRespawn').value + '秒';
+            document.getElementById('valEnemySpawn').innerText = document.getElementById('optEnemySpawn').value + '秒';
+            document.getElementById('valEnemyShrineCap').innerText = document.getElementById('optEnemyShrineCap').value + '名';
+            document.getElementById('valTowerCount').innerText = document.getElementById('optTowerCount').value + '塔';
+            const wLvl = parseInt(document.getElementById('optWoodLevel').value, 10);
+            document.getElementById('valWoodLevel').innerText = WOOD_LEVEL_LABELS[wLvl] || '4（普通）';
+        }
+
+        function getFormSettings() {
+            return {
+                timeLimitMinutes: parseInt(document.getElementById('optTimeLimit').value, 10),
+                maxPopulation: parseInt(document.getElementById('optMaxPop').value, 10),
+                playerRespawnSec: parseInt(document.getElementById('optPlayerRespawn').value, 10),
+                enemySpawnSec: parseInt(document.getElementById('optEnemySpawn').value, 10),
+                enemyShrineCap: parseInt(document.getElementById('optEnemyShrineCap').value, 10),
+                towerCount: parseInt(document.getElementById('optTowerCount').value, 10),
+                woodLevel: parseInt(document.getElementById('optWoodLevel').value, 10)
+            };
+        }
+
+        function setFormSettings(s) {
+            document.getElementById('optTimeLimit').value = s.timeLimitMinutes ?? 30;
+            document.getElementById('optMaxPop').value = s.maxPopulation ?? 60;
+            document.getElementById('optPlayerRespawn').value = s.playerRespawnSec ?? 15;
+            document.getElementById('optEnemySpawn').value = s.enemySpawnSec ?? 60;
+            document.getElementById('optEnemyShrineCap').value = s.enemyShrineCap ?? 18;
+            document.getElementById('optTowerCount').value = s.towerCount ?? 5;
+            document.getElementById('optWoodLevel').value = s.woodLevel ?? 4;
+            syncSettingLabels();
+        }
+
+        function getStoredProfiles() {
+            try {
+                const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function setStoredProfiles(profiles) {
+            try {
+                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
+            } catch (e) {}
+        }
+
+        function refreshProfileDropdown(selectedName) {
+            const select = document.getElementById('profileSelect');
+            const profiles = getStoredProfiles();
+            const names = Object.keys(profiles);
+            select.innerHTML = '';
+            if (names.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '（保存済みプロファイルなし）';
+                select.appendChild(opt);
+            } else {
+                names.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    if (name === selectedName) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        function createNewProfile() {
+            const name = prompt('新しい設定プロファイル名を入力してください:');
+            if (!name || !name.trim()) return;
+            const trimmed = name.trim();
+            const profiles = getStoredProfiles();
+            profiles[trimmed] = getFormSettings();
+            setStoredProfiles(profiles);
+            refreshProfileDropdown(trimmed);
+        }
+
+        function saveCurrentProfile() {
+            const select = document.getElementById('profileSelect');
+            let currentName = select.value;
+            if (!currentName) {
+                createNewProfile();
+                return;
+            }
+            const profiles = getStoredProfiles();
+            profiles[currentName] = getFormSettings();
+            setStoredProfiles(profiles);
+            refreshProfileDropdown(currentName);
+            alert(`プロファイル「${currentName}」に保存しました。`);
+        }
+
+        function loadSelectedProfile() {
+            const select = document.getElementById('profileSelect');
+            const currentName = select.value;
+            if (!currentName) {
+                alert('読み込むプロファイルがありません。');
+                return;
+            }
+            const profiles = getStoredProfiles();
+            if (profiles[currentName]) {
+                setFormSettings(profiles[currentName]);
+            }
+        }
+
+        function handleMapFileLoad(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    customMapData = parsed;
+                    document.getElementById('mapFileNameInput').value = file.name;
+                    if (Array.isArray(parsed.enemyTowers) && parsed.enemyTowers.length >= 2 && parsed.enemyTowers.length <= 10) {
+                        document.getElementById('optTowerCount').value = parsed.enemyTowers.length;
+                        syncSettingLabels();
+                    }
+                } catch (err) {
+                    alert('マップファイルの形式が正しくありません（JSONファイルを選択してください）。');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function openSettingsModal() {
+            if (isGameOver) return;
+            isPaused = true;
+            updatePauseBtnUI();
+            setFormSettings(gameSettings);
+            document.getElementById('btnResumeGame').style.display = hasGameStarted ? 'inline-block' : 'none';
+            document.getElementById('btnStartNewGame').innerText = hasGameStarted ? '新しい設定で最初から開始' : 'この設定でゲーム開始';
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+
+        function applySettingsAndStart(forceRestart) {
+            initAudio();
+            const nextSettings = getFormSettings();
+            const needRestart = forceRestart || !hasGameStarted ||
+                nextSettings.maxPopulation !== gameSettings.maxPopulation ||
+                nextSettings.towerCount !== gameSettings.towerCount ||
+                nextSettings.woodLevel !== gameSettings.woodLevel;
+
+            if (!needRestart && nextSettings.timeLimitMinutes !== gameSettings.timeLimitMinutes) {
+                const elapsed = totalTimeFrames - remainingTimeFrames;
+                totalTimeFrames = nextSettings.timeLimitMinutes * 60 * 60;
+                remainingTimeFrames = Math.max(60, totalTimeFrames - elapsed);
+            }
+
+            gameSettings = nextSettings;
+            maxPopulation = gameSettings.maxPopulation;
+
+            document.getElementById('settingsModal').style.display = 'none';
+            isPaused = false;
+            updatePauseBtnUI();
+
+            if (needRestart) {
+                hasGameStarted = true;
+                initGame();
+            }
+            startBGMIfEnabled();
+        }
+
+        // --- 効果音合成 ---
+        function playShootSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let now = audioCtx.currentTime;
+                let bufferSize = Math.floor(audioCtx.sampleRate * 0.14);
+                let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                let data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
+                }
+                let noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                let filter = audioCtx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(1400, now);
+                filter.frequency.exponentialRampToValueAtTime(3200, now + 0.08);
+                filter.Q.value = 3.0;
+
+                let gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.45, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(sfxMasterGain);
+                noise.start(now);
+            } catch(e) {}
+        }
+
+        function playSpearSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let now = audioCtx.currentTime;
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(650, now);
+                osc.frequency.exponentialRampToValueAtTime(110, now + 0.11);
+                gain.gain.setValueAtTime(0.38, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.11);
+                osc.connect(gain);
+                gain.connect(sfxMasterGain);
+                osc.start(now);
+                osc.stop(now + 0.11);
+            } catch(e) {}
+        }
+
+        function playCavalryStompSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let now = audioCtx.currentTime;
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(35, now + 0.16);
+                gain.gain.setValueAtTime(0.45, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+                osc.connect(gain);
+                gain.connect(sfxMasterGain);
+                osc.start(now);
+                osc.stop(now + 0.16);
+
+                let bufferSize = Math.floor(audioCtx.sampleRate * 0.1);
+                let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                let data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+                }
+                let noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                let nGain = audioCtx.createGain();
+                nGain.gain.setValueAtTime(0.4, now);
+                nGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                noise.connect(nGain);
+                nGain.connect(sfxMasterGain);
+                noise.start(now);
+            } catch(e) {}
+        }
+
+        function playHeroSpinSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let now = audioCtx.currentTime;
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.exponentialRampToValueAtTime(520, now + 0.08);
+                osc.frequency.exponentialRampToValueAtTime(90, now + 0.22);
+                gain.gain.setValueAtTime(0.45, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+                osc.connect(gain);
+                gain.connect(sfxMasterGain);
+                osc.start(now);
+                osc.stop(now + 0.22);
+            } catch(e) {}
+        }
+
+        function playHitSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.38, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(sfxMasterGain);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } catch(e) {}
+        }
+
+        function playSelectVoice() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const filter = audioCtx.createBiquadFilter();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(170, now);
+                osc.frequency.exponentialRampToValueAtTime(320, now + 0.16);
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(650, now);
+                filter.Q.setValueAtTime(3.5, now);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.28, now + 0.03);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(sfxMasterGain);
+                osc.start(now);
+                osc.stop(now + 0.19);
+            } catch(e) {}
+        }
+
+        function playAckVoice() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                const now = audioCtx.currentTime;
+                const notes = [{ t: 0.0, f1: 210, f2: 230, d: 0.08 }, { t: 0.1, f1: 270, f2: 240, d: 0.11 }];
+                notes.forEach(n => {
+                    const osc = audioCtx.createOscillator();
+                    const filter = audioCtx.createBiquadFilter();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(n.f1, now + n.t);
+                    osc.frequency.exponentialRampToValueAtTime(n.f2, now + n.t + n.d);
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(750, now + n.t);
+                    filter.Q.setValueAtTime(3.5, now + n.t);
+                    gain.gain.setValueAtTime(0.001, now + n.t);
+                    gain.gain.linearRampToValueAtTime(0.28, now + n.t + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
+                    osc.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(sfxMasterGain);
+                    osc.start(now + n.t);
+                    osc.stop(now + n.t + n.d + 0.01);
+                });
+            } catch(e) {}
+        }
+
+        function playDeathGroanSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let now = audioCtx.currentTime;
+                let osc1 = audioCtx.createOscillator();
+                let osc2 = audioCtx.createOscillator();
+                let filter = audioCtx.createBiquadFilter();
+                let gain = audioCtx.createGain();
+
+                let basePitch = 135 + (Math.random() - 0.5) * 30;
+                osc1.type = 'sawtooth';
+                osc2.type = 'triangle';
+                osc1.frequency.setValueAtTime(basePitch, now);
+                osc1.frequency.linearRampToValueAtTime(basePitch * 0.62, now + 0.45);
+                osc2.frequency.setValueAtTime(basePitch * 0.5, now);
+                osc2.frequency.linearRampToValueAtTime(basePitch * 0.31, now + 0.45);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(420, now);
+                filter.frequency.linearRampToValueAtTime(240, now + 0.45);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.45, now + 0.06);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(sfxMasterGain);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.48);
+                osc2.stop(now + 0.48);
+            } catch(e) {}
+        }
+
+        function playWoodCutSound() {
+            initAudio();
+            if (!audioCtx || !sfxMasterGain) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.24, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(sfxMasterGain);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.08);
+            } catch(e) {}
+        }
+
+        function isTreeOverlappingProtectedArea(treeX, treeY, treeSize, startX, startY) {
+            const pad = 55;
+            const tx1 = treeX, ty1 = treeY, tx2 = treeX + treeSize, ty2 = treeY + treeSize;
+
+            if (Math.hypot((treeX + 16) - startX, (treeY + 16) - startY) < 350) return true;
+
+            const enemyBuildings = [enemyTownCenter, ...enemyShrines, ...enemyTowers];
+            for (let i = 0; i < enemyBuildings.length; i++) {
+                const b = enemyBuildings[i];
+                if (tx2 > b.x - pad && tx1 < b.x + b.width + pad &&
+                    ty2 > b.y - pad && ty1 < b.y + b.height + pad) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function isAreaOverlappingTrees(rx, ry, rw, rh) {
+            for (let i = 0; i < trees.length; i++) {
+                const t = trees[i];
+                if (t.amount <= 0) continue;
+                if (rx + rw > t.x && rx < t.x + t.size &&
+                    ry + rh > t.y && ry < t.y + t.size) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function initGame() {
+            trees = [];
+            units = [];
+            arrows = [];
+            playerShrines = [];
+            commandRipples = [];
+            shrineRespawnTimer = 0;
+            heroProgress = 0;
+            siegeProgress = 0;
+            cancelTemplePlacement();
+            isGameOver = false;
+            isViewingMap = false;
+            document.getElementById('gameOverModal').style.display = 'none';
+            document.getElementById('viewMapBar').style.display = 'none';
+            resetBattleStats();
+            for (let k in controlGroups) controlGroups[k] = [];
+            updateGroupButtonsUI();
+
+            maxPopulation = gameSettings.maxPopulation;
+            totalTimeFrames = gameSettings.timeLimitMinutes * 60 * 60;
+            remainingTimeFrames = totalTimeFrames;
+
+            // 自軍初期位置（マップ左下）
+            let startX = (customMapData && customMapData.playerStart) ? customMapData.playerStart.x : 450;
+            let startY = (customMapData && customMapData.playerStart) ? customMapData.playerStart.y : 2500;
+
+            // 敵町の中心（右上4分の1の正方形の中心 (2250, 750) に配置）
+            let tcX = (customMapData && customMapData.enemyTownCenter) ? customMapData.enemyTownCenter.x : (DEFAULT_TC_CENTER.x - 70);
+            let tcY = (customMapData && customMapData.enemyTownCenter) ? customMapData.enemyTownCenter.y : (DEFAULT_TC_CENTER.y - 50);
+            enemyTownCenter = {
+                x: tcX, y: tcY, width: 140, height: 100,
+                hp: 1500, maxHp: 1500, name: '敵 町の中心',
+                range: 720, attack: 6, attackCooldown: 0, burstQueue: []
+            };
+
+            // 敵神殿3つ（最初は駐留0スタート）
+            if (customMapData && Array.isArray(customMapData.enemyShrines) && customMapData.enemyShrines.length === 3) {
+                enemyShrines = customMapData.enemyShrines.map((pos, idx) => ({
+                    x: pos.x, y: pos.y, width: 90, height: 90, hp: 800, maxHp: 800,
+                    name: `敵 神殿${['①','②','③'][idx]}`,
+                    garrison: [], spawnTimer: 0, prevHp: 800, isRefillMode: false, hasEverSpawned: false
+                }));
+            } else {
+                enemyShrines = [
+                    { x: 1930, y: 600,  width: 90, height: 90, hp: 800, maxHp: 800, name: '敵 神殿①', garrison: [], spawnTimer: 0, prevHp: 800, isRefillMode: false, hasEverSpawned: false },
+                    { x: 2480, y: 600,  width: 90, height: 90, hp: 800, maxHp: 800, name: '敵 神殿②', garrison: [], spawnTimer: 0, prevHp: 800, isRefillMode: false, hasEverSpawned: false },
+                    { x: 2205, y: 1000, width: 90, height: 90, hp: 800, maxHp: 800, name: '敵 神殿③', garrison: [], spawnTimer: 0, prevHp: 800, isRefillMode: false, hasEverSpawned: false }
+                ];
+            }
+
+            // 防衛塔（設定数 2〜10塔）
+            let towerSource = (customMapData && Array.isArray(customMapData.enemyTowers) && customMapData.enemyTowers.length > 0)
+                ? customMapData.enemyTowers
+                : DEFAULT_TOWER_POSITIONS;
+
+            enemyTowers = [];
+            for (let i = 0; i < gameSettings.towerCount; i++) {
+                let pos = towerSource[i % towerSource.length];
+                let hpVal = pos.hp || (i === 0 ? 600 : 500);
+                enemyTowers.push({
+                    x: pos.x, y: pos.y, width: 60, height: 60,
+                    hp: hpVal, maxHp: hpVal, name: '防衛塔',
+                    range: 480, attack: 6, attackCooldown: 0, burstQueue: [], garrisonSpawned: false
+                });
+            }
+            initialEnemyTowerTotal = enemyTowers.length;
+
+            // 木材の配置（敵建設物と重ならないように1本ずつチェックして配置）
+            if (customMapData && Array.isArray(customMapData.trees) && customMapData.trees.length > 0) {
+                customMapData.trees.forEach(t => {
+                    if (!isTreeOverlappingProtectedArea(t.x, t.y, 32, startX, startY)) {
+                        let treeObj = new Tree(t.x, t.y);
+                        if (t.amount) treeObj.amount = t.amount;
+                        trees.push(treeObj);
+                    }
+                });
+            } else {
+                const clusterCounts = { 1: 8, 2: 15, 3: 22, 4: 30, 5: 40, 6: 50, 7: 60 };
+                const totalClusters = clusterCounts[gameSettings.woodLevel] || 30;
+                for (let c = 0; c < totalClusters; c++) {
+                    let forestX = 250 + Math.random() * 2500;
+                    let forestY = 250 + Math.random() * 2500;
+                    if (Math.hypot(forestX - startX, forestY - startY) < 350) continue;
+                    if (Math.hypot(forestX - DEFAULT_TC_CENTER.x, forestY - DEFAULT_TC_CENTER.y) < 420) continue;
+
+                    for (let i = 0; i < 14; i++) {
+                        let tx = forestX + (Math.random() - 0.5) * 120;
+                        let ty = forestY + (Math.random() - 0.5) * 120;
+                        if (!isTreeOverlappingProtectedArea(tx, ty, 32, startX, startY)) {
+                            trees.push(new Tree(tx, ty));
+                        }
+                    }
+                }
+            }
+
+            // 自軍工作兵の初期配置
+            let cols = maxPopulation > 100 ? 20 : 10;
+            for (let i = 0; i < maxPopulation; i++) {
+                let row = Math.floor(i / cols);
+                let col = i % cols;
+                units.push(new Unit(startX + col * 26, startY + row * 26, '工', 'player'));
+            }
+
+            camera.zoom = 0.85;
+            centerCameraOn(startX + 120, startY + 60);
+            updateHUD();
+        }
+
+        class Tree {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = 32; this.amount = 150; this.label = '木';
+            }
+            draw() {
+                if (this.amount <= 0) return;
+                const viewW = canvas.width / camera.zoom;
+                const viewH = canvas.height / camera.zoom;
+                let screenX = this.x - camera.x;
+                let screenY = this.y - camera.y;
+                if (screenX < -50 || screenX > viewW + 50 || screenY < -50 || screenY > viewH + 50) return;
+
+                ctx.fillStyle = '#1b4320';
+                ctx.fillRect(screenX, screenY, this.size, this.size);
+                ctx.strokeStyle = '#0d2311';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(screenX, screenY, this.size, this.size);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, screenX + this.size / 2, screenY + this.size / 2);
+            }
+        }
+
+        class ShrineBuilding {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.width = 100; this.height = 100;
+                this.maxHp = 2000;
+                this.hp = 0;
+                this.isComplete = false;
+                this.name = '建設中神殿';
+            }
+
+            update() {
+                if (this.isComplete) {
+                    this.name = '自軍 神殿';
+                    this.maxHp = 2500;
+                    if (this.hp < this.maxHp) this.hp = this.maxHp;
+                }
+            }
+
+            draw() {
+                const viewW = canvas.width / camera.zoom;
+                const viewH = canvas.height / camera.zoom;
+                let sx = this.x - camera.x;
+                let sy = this.y - camera.y;
+                if (sx < -200 || sx > viewW + 200 || sy < -200 || sy > viewH + 200) return;
+
+                if (!this.isComplete) {
+                    ctx.fillStyle = 'rgba(156, 39, 176, 0.45)';
+                    ctx.fillRect(sx, sy, this.width, this.height);
+                    ctx.strokeStyle = '#ba68c8';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeRect(sx, sy, this.width, this.height);
+                    ctx.setLineDash([]);
+
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 11px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`建設中 (${this.hp}/2000)`, sx + this.width / 2, sy + this.height / 2);
+
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(sx, sy - 10, this.width, 5);
+                    ctx.fillStyle = '#ffeb3b';
+                    ctx.fillRect(sx, sy - 10, (this.hp / 2000) * this.width, 5);
+                } else {
+                    ctx.fillStyle = '#9c27b0';
+                    ctx.fillRect(sx, sy, this.width, this.height);
+                    ctx.strokeStyle = '#e1bee7';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(sx, sy, this.width, this.height);
+
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('神殿', sx + this.width / 2, sy + 30);
+
+                    let currentPop = units.filter(u => u.team === 'player' && u.label !== '投' && u.hp > 0).length;
+                    let respawnFrames = gameSettings.playerRespawnSec * 60;
+                    if (currentPop < maxPopulation) {
+                        let secLeft = Math.max(1, Math.ceil((respawnFrames - shrineRespawnTimer) / 60));
+                        ctx.fillStyle = '#ffeb3b';
+                        ctx.font = '10px sans-serif';
+                        ctx.fillText(`補充中 (あと${secLeft}秒)`, sx + this.width / 2, sy + 65);
+                    }
+
+                    if (this.hp < this.maxHp) {
+                        ctx.fillStyle = 'red';
+                        ctx.fillRect(sx, sy - 10, this.width, 5);
+                        ctx.fillStyle = '#00ff00';
+                        ctx.fillRect(sx, sy - 10, (this.hp / this.maxHp) * this.width, 5);
+                    }
+                }
+            }
+        }
+
+        function isBuildingTarget(target) {
+            return target && typeof target.width === 'number' && typeof target.height === 'number' && typeof target.radiusX !== 'number';
+        }
+
+        function getClosestPointOnBuilding(building, px, py) {
+            let cx = Math.max(building.x, Math.min(px, building.x + building.width));
+            let cy = Math.max(building.y, Math.min(py, building.y + building.height));
+            return { x: cx, y: cy };
+        }
+
+        class Unit {
+            constructor(x, y, label, team) {
+                this.x = x; this.y = y; this.label = label; this.team = team;
+                this.updateDimensions();
+                this.selected = false;
+                this.targetX = x; this.targetY = y;
+                this.targetUnit = null; this.targetTree = null;
+                this.carryingWood = 0;
+                this.transformTarget = null;
+                this.attackCooldown = 0; this.currentSpeed = 0;
+                this.attackAnimTimer = 0; this.attackAnimMax = 14;
+                this.damageAnimTimer = 0; this.prevHp = 0;
+                this.facingAngle = 0;
+                this.regenTimer = 0;
+                this.deathSoundPlayed = false;
+                this.isMoving = false;
+                this.manualMove = false;
+                this.formationAngle = 0;
+                this.useLateralBoost = false;
+
+                this.applyStats();
+                this.prevHp = this.hp;
+            }
+
+            updateDimensions() {
+                if (this.label === '投') {
+                    this.width = 76;
+                    this.height = 76;
+                } else if (this.label === '英') {
+                    this.radiusX = 22;
+                    this.radiusY = 22;
+                } else {
+                    this.radiusX = 16;
+                    this.radiusY = 16;
+                }
+            }
+
+            getCollisionRadius() {
+                if (this.label === '投') return 36;
+                if (this.label === '英') return 20;
+                return 14;
+            }
+
+            applyStats() {
+                this.updateDimensions();
+                if (this.label === '工') {
+                    this.hp = 40; this.maxHp = 40; this.baseSpeed = 2.1; this.attack = 3; this.range = 35; this.aggroRange = 0;
+                } else if (this.label === '槍') {
+                    this.hp = 50; this.maxHp = 50; this.baseSpeed = 1.4; this.attack = 8; this.range = 35; this.aggroRange = 520;
+                } else if (this.label === '弓') {
+                    this.hp = 35; this.maxHp = 35; this.baseSpeed = 1.6; this.attack = 6; this.range = 480; this.aggroRange = 480;
+                } else if (this.label === '馬') {
+                    this.hp = 80; this.maxHp = 80; this.baseSpeed = 3.0; this.attack = 10; this.range = 40; this.aggroRange = 520;
+                } else if (this.label === '英') {
+                    this.hp = 500; this.maxHp = 500; this.baseSpeed = 3.0; this.attack = 24; this.range = 105; this.aggroRange = Infinity;
+                } else if (this.label === '投') {
+                    this.hp = 240; this.maxHp = 240; this.baseSpeed = 0.9; this.attack = 0; this.range = 380; this.aggroRange = 0;
+                }
+            }
+
+            moveWithTreePhysics(rawMoveX, rawMoveY) {
+                const moveLen = Math.hypot(rawMoveX, rawMoveY);
+                if (moveLen < 0.001) return;
+
+                const unitR = this.getCollisionRadius();
+                const treeR = 16;
+                const nextX = this.x + rawMoveX;
+                const nextY = this.y + rawMoveY;
+
+                let isNearTree = false;
+                for (let i = 0; i < trees.length; i++) {
+                    const t = trees[i];
+                    if (t.amount <= 0) continue;
+                    if (this.label === '工' && this.targetTree === t) continue;
+
+                    const tcx = t.x + 16;
+                    const tcy = t.y + 16;
+                    const distCurr = Math.hypot(tcx - this.x, tcy - this.y);
+                    const distNext = Math.hypot(tcx - nextX, tcy - nextY);
+
+                    if (distCurr < unitR + treeR + 6 || distNext < unitR + treeR + 6) {
+                        isNearTree = true;
+                        break;
+                    }
+                }
+
+                if (isNearTree) {
+                    const speedMultiplier = (this.label === '英' || this.label === '投') ? (1 / 2) : (1 / 3);
+                    this.x += rawMoveX * speedMultiplier;
+                    this.y += rawMoveY * speedMultiplier;
+                } else {
+                    this.x = nextX;
+                    this.y = nextY;
+                }
+                this.isMoving = true;
+            }
+
+            getAttackTargetPoint(target) {
+                if (!target) return { x: this.x, y: this.y };
+                if (isBuildingTarget(target)) {
+                    if (this.label === '弓') {
+                        return { x: target.x + target.width / 2, y: target.y + target.height / 2 };
+                    } else {
+                        return getClosestPointOnBuilding(target, this.x, this.y);
+                    }
+                }
+                return { x: target.x, y: target.y };
+            }
+
+            getTargetCenter(target) {
+                if (!target) return { x: this.x, y: this.y };
+                if (isBuildingTarget(target)) {
+                    return { x: target.x + target.width / 2, y: target.y + target.height / 2 };
+                }
+                return { x: target.x, y: target.y };
+            }
+
+            isHeroGuardingShrine() {
+                if (this.label !== '英' || this.team !== 'player') return false;
+                return playerShrines.some(s => {
+                    if (s.hp <= 0) return false;
+                    let sx = s.x + s.width / 2;
+                    let sy = s.y + s.height / 2;
+                    return Math.hypot(sx - this.x, sy - this.y) <= 180;
+                });
+            }
+
+            update() {
+                if (this.attackCooldown > 0) this.attackCooldown--;
+                if (this.attackAnimTimer > 0) this.attackAnimTimer--;
+
+                if (this.hp < this.prevHp) {
+                    this.damageAnimTimer = 12;
+                    playHitSound();
+                }
+                this.prevHp = this.hp;
+                if (this.damageAnimTimer > 0) this.damageAnimTimer--;
+
+                if (this.hp <= 0) {
+                    if (!this.deathSoundPlayed) {
+                        this.deathSoundPlayed = true;
+                        playDeathGroanSound();
+                        if (this.team === 'enemy') {
+                            if (this.label === '槍') battleStats.killedEnemySpear++;
+                            else if (this.label === '弓') battleStats.killedEnemyArcher++;
+                            else if (this.label === '馬') battleStats.killedEnemyCavalry++;
+                            else battleStats.killedEnemyOther++;
+                        } else if (this.team === 'player') {
+                            if (this.label === '投') battleStats.lostPlayerShields++;
+                            else battleStats.lostPlayerUnits++;
+                        }
+                    }
+                    return;
+                }
+
+                if (this.label === '英' && this.hp < this.maxHp) {
+                    this.regenTimer++;
+                    if (this.regenTimer >= 30) {
+                        this.regenTimer = 0;
+                        this.hp = Math.min(this.maxHp, this.hp + 1);
+                        this.prevHp = this.hp;
+                    }
+                }
+
+                const chopReach = 48;
+
+                if (this.label === '工' && this.transformTarget && this.team === 'player') {
+                    if (this.transformTarget === '英') {
+                        if (!this.targetTree || this.targetTree.amount <= 0) {
+                            let nearest = null;
+                            let minDist = Infinity;
+                            trees.forEach(t => {
+                                if (t.amount > 0) {
+                                    let d = Math.hypot(t.x - this.x, t.y - this.y);
+                                    if (d < minDist) { minDist = d; nearest = t; }
+                                }
+                            });
+                            this.targetTree = nearest;
+                            if (nearest) {
+                                this.targetX = nearest.x + 16;
+                                this.targetY = nearest.y + 16;
+                            }
+                        } else {
+                            let distToTree = Math.hypot((this.targetTree.x + 16) - this.x, (this.targetTree.y + 16) - this.y);
+                            if (distToTree < chopReach) {
+                                if (this.attackCooldown <= 0 && this.targetTree.amount > 0) {
+                                    this.targetTree.amount -= 1;
+                                    battleStats.woodHarvested += 1;
+                                    heroProgress += 1;
+                                    this.attackCooldown = 30;
+                                    if (woodCutSoundTimer <= 0) {
+                                        playWoodCutSound();
+                                        woodCutSoundTimer = 12;
+                                    }
+
+                                    if (heroProgress >= 1000) {
+                                        heroProgress = 0;
+                                        this.label = '英';
+                                        this.transformTarget = null;
+                                        this.targetTree = null;
+                                        this.applyStats();
+                                        this.targetX = this.x + 40;
+                                        this.targetY = this.y;
+                                        battleStats.createdHero++;
+
+                                        units.forEach(u => {
+                                            if (u.team === 'player' && u.label === '工' && u.transformTarget === '英') {
+                                                u.transformTarget = null;
+                                                u.targetTree = null;
+                                            }
+                                        });
+                                    }
+                                }
+                                return;
+                            }
+                        }
+                    } else if (this.transformTarget === '投') {
+                        let currentSiegeCount = units.filter(u => u.team === 'player' && u.label === '投').length;
+                        if (currentSiegeCount >= 5) {
+                            this.transformTarget = null;
+                            this.targetTree = null;
+                            return;
+                        }
+
+                        if (!this.targetTree || this.targetTree.amount <= 0) {
+                            let nearest = null;
+                            let minDist = Infinity;
+                            trees.forEach(t => {
+                                if (t.amount > 0) {
+                                    let d = Math.hypot(t.x - this.x, t.y - this.y);
+                                    if (d < minDist) { minDist = d; nearest = t; }
+                                }
+                            });
+                            this.targetTree = nearest;
+                            if (nearest) {
+                                this.targetX = nearest.x + 16;
+                                this.targetY = nearest.y + 16;
+                            }
+                        } else {
+                            let distToTree = Math.hypot((this.targetTree.x + 16) - this.x, (this.targetTree.y + 16) - this.y);
+                            if (distToTree < chopReach) {
+                                if (this.attackCooldown <= 0 && this.targetTree.amount > 0) {
+                                    this.targetTree.amount -= 1;
+                                    battleStats.woodHarvested += 1;
+                                    siegeProgress += 1;
+                                    this.attackCooldown = 30;
+                                    if (woodCutSoundTimer <= 0) {
+                                        playWoodCutSound();
+                                        woodCutSoundTimer = 12;
+                                    }
+
+                                    if (siegeProgress >= 800) {
+                                        siegeProgress = 0;
+                                        let updatedSiegeCount = units.filter(u => u.team === 'player' && u.label === '投').length;
+                                        if (updatedSiegeCount < 5) {
+                                            let newSiege = new Unit(this.x + 40, this.y, '投', 'player');
+                                            newSiege.targetX = newSiege.x + 40;
+                                            newSiege.targetY = newSiege.y;
+                                            units.push(newSiege);
+                                            battleStats.createdShield++;
+                                        }
+
+                                        units.forEach(u => {
+                                            if (u.team === 'player' && u.label === '工' && u.transformTarget === '投') {
+                                                u.transformTarget = null;
+                                                u.targetTree = null;
+                                            }
+                                        });
+                                    }
+                                }
+                                return;
+                            }
+                        }
+                    } else if (this.transformTarget === '神') {
+                        let targetShrine = playerShrines.find(s => !s.isComplete);
+                        if (!targetShrine) {
+                            this.transformTarget = null;
+                            this.targetTree = null;
+                            return;
+                        }
+
+                        if (!this.targetTree || this.targetTree.amount <= 0) {
+                            let nearest = null;
+                            let minDist = Infinity;
+                            trees.forEach(t => {
+                                if (t.amount > 0) {
+                                    let d = Math.hypot(t.x - this.x, t.y - this.y);
+                                    if (d < minDist) { minDist = d; nearest = t; }
+                                }
+                            });
+                            this.targetTree = nearest;
+                            if (nearest) {
+                                this.targetX = nearest.x + 16;
+                                this.targetY = nearest.y + 16;
+                            }
+                        } else {
+                            let distToTree = Math.hypot((this.targetTree.x + 16) - this.x, (this.targetTree.y + 16) - this.y);
+                            if (distToTree < chopReach) {
+                                if (this.attackCooldown <= 0 && this.targetTree.amount > 0) {
+                                    this.targetTree.amount -= 1;
+                                    battleStats.woodHarvested += 1;
+                                    targetShrine.hp += 1;
+                                    this.attackCooldown = 30;
+                                    if (woodCutSoundTimer <= 0) {
+                                        playWoodCutSound();
+                                        woodCutSoundTimer = 12;
+                                    }
+
+                                    if (targetShrine.hp >= 2000) {
+                                        targetShrine.isComplete = true;
+                                        targetShrine.hp = 2500;
+                                        battleStats.builtShrines++;
+                                        units.forEach(u => {
+                                            if (u.team === 'player' && u.label === '工' && u.transformTarget === '神') {
+                                                u.transformTarget = null;
+                                                u.targetTree = null;
+                                            }
+                                        });
+                                    }
+                                }
+                                return;
+                            }
+                        }
+                    } else {
+                        let requiredWood = COSTS[this.transformTarget];
+                        if (!this.targetTree || this.targetTree.amount <= 0) {
+                            let nearest = null;
+                            let minDist = Infinity;
+                            trees.forEach(t => {
+                                if (t.amount > 0) {
+                                    let d = Math.hypot(t.x - this.x, t.y - this.y);
+                                    if (d < minDist) { minDist = d; nearest = t; }
+                                }
+                            });
+                            this.targetTree = nearest;
+                            if (nearest) {
+                                this.targetX = nearest.x + 16;
+                                this.targetY = nearest.y + 16;
+                            }
+                        } else {
+                            let distToTree = Math.hypot((this.targetTree.x + 16) - this.x, (this.targetTree.y + 16) - this.y);
+                            if (distToTree < chopReach) {
+                                if (this.attackCooldown <= 0 && this.targetTree.amount > 0) {
+                                    this.targetTree.amount -= 1;
+                                    battleStats.woodHarvested += 1;
+                                    this.carryingWood += 1;
+                                    this.attackCooldown = 30;
+                                    if (woodCutSoundTimer <= 0) {
+                                        playWoodCutSound();
+                                        woodCutSoundTimer = 12;
+                                    }
+                                }
+                                return;
+                            }
+                        }
+
+                        if (this.carryingWood >= requiredWood) {
+                            this.carryingWood -= requiredWood;
+                            let oldLabel = this.transformTarget;
+                            this.label = oldLabel;
+                            this.transformTarget = null;
+                            this.targetTree = null;
+                            this.applyStats();
+                            this.targetX = this.x + 40;
+                            this.targetY = this.y;
+
+                            if (oldLabel === '槍') battleStats.createdSpear++;
+                            else if (oldLabel === '弓') battleStats.createdArcher++;
+                            else if (oldLabel === '馬') battleStats.createdCavalry++;
+                            return;
+                        }
+                    }
+                }
+
+                // 自軍戦闘ユニットの自動索敵
+                if (this.team === 'player' && !this.manualMove && (!this.targetUnit || this.targetUnit.hp <= 0) && this.label !== '工' && this.label !== '投') {
+                    let closestEnemy = null;
+                    let guarding = this.isHeroGuardingShrine();
+                    let minD = (this.label === '英') ? (guarding ? 520 : Infinity) : (this.aggroRange || 200);
+
+                    units.forEach(u => {
+                        if (u.team === 'enemy' && u.hp > 0) {
+                            let d = Math.hypot(u.x - this.x, u.y - this.y);
+                            if (d < minD) { minD = d; closestEnemy = u; }
+                        }
+                    });
+
+                    if (closestEnemy) {
+                        this.targetUnit = closestEnemy;
+                        if (this.label === '英' && !guarding) {
+                            for (let k in controlGroups) {
+                                if (controlGroups[k].includes(this)) {
+                                    controlGroups[k].forEach(member => {
+                                        if (member !== this && member.hp > 0 && member.label !== '工' && member.label !== '投' && !member.manualMove) {
+                                            member.targetUnit = closestEnemy;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 敵ユニットの自動索敵
+                if (this.team === 'enemy' && (!this.targetUnit || this.targetUnit.hp <= 0)) {
+                    let closestPlayer = null;
+                    let minD = this.aggroRange || 520;
+                    units.forEach(u => {
+                        if (u.team === 'player' && u.hp > 0) {
+                            let d = Math.hypot(u.x - this.x, u.y - this.y);
+                            if (d < minD) { minD = d; closestPlayer = u; }
+                        }
+                    });
+                    if (!closestPlayer) {
+                        playerShrines.forEach(s => {
+                            if (s.hp > 0) {
+                                let sc = getClosestPointOnBuilding(s, this.x, this.y);
+                                let d = Math.hypot(sc.x - this.x, sc.y - this.y);
+                                if (d < minD) { minD = d; closestPlayer = s; }
+                            }
+                        });
+                    }
+                    if (closestPlayer) {
+                        this.targetUnit = closestPlayer;
+                    }
+                }
+
+                this.isMoving = false;
+
+                if (this.targetUnit && this.targetUnit.hp > 0) {
+                    let tp = this.getAttackTargetPoint(this.targetUnit);
+                    this.targetX = tp.x;
+                    this.targetY = tp.y;
+                    this.facingAngle = Math.atan2(tp.y - this.y, tp.x - this.x);
+                    const dist = Math.hypot(tp.x - this.x, tp.y - this.y);
+
+                    if (this.label !== '投' && dist <= this.range) {
+                        if (this.attackCooldown <= 0) {
+                            this.executeAttack(this.targetUnit);
+                            this.attackCooldown = 70;
+                            this.attackAnimMax = (this.label === '馬') ? 18 : 14;
+                            this.attackAnimTimer = this.attackAnimMax;
+                        }
+                    }
+                } else {
+                    this.targetUnit = null;
+                }
+
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                const dist = Math.hypot(dx, dy);
+
+                let speed = (this.currentSpeed > 0) ? this.currentSpeed : this.baseSpeed;
+
+                if (dist > speed && (this.targetUnit ? dist > this.range : true)) {
+                    if (this.label === '投' && this.useLateralBoost) {
+                        const cosF = Math.cos(this.formationAngle);
+                        const sinF = Math.sin(this.formationAngle);
+                        const latAngle = this.formationAngle + Math.PI / 2;
+                        const cosL = Math.cos(latAngle);
+                        const sinL = Math.sin(latAngle);
+
+                        const fwdDist = dx * cosF + dy * sinF;
+                        const latDist = dx * cosL + dy * sinL;
+
+                        const fwdStep = Math.sign(fwdDist) * Math.min(Math.abs(fwdDist), this.baseSpeed);
+                        const latStep = Math.sign(latDist) * Math.min(Math.abs(latDist), this.baseSpeed * 3);
+
+                        const moveX = fwdStep * cosF + latStep * cosL;
+                        const moveY = fwdStep * sinF + latStep * sinL;
+
+                        this.facingAngle = this.formationAngle;
+                        this.moveWithTreePhysics(moveX, moveY);
+                    } else {
+                        this.facingAngle = Math.atan2(dy, dx);
+                        const moveX = (dx / dist) * speed;
+                        const moveY = (dy / dist) * speed;
+                        this.moveWithTreePhysics(moveX, moveY);
+                    }
+                } else {
+                    if (this.currentSpeed > 0) this.currentSpeed = 0;
+                    if (this.manualMove && !this.targetUnit) {
+                        this.manualMove = false;
+                    }
+                    if (this.useLateralBoost) {
+                        this.useLateralBoost = false;
+                    }
+                }
+            }
+
+            calcDamageAgainst(target) {
+                if (this.label === '投') return 0;
+                let dmg = this.attack;
+                if (this.label === '槍' && target.label === '馬') {
+                    dmg += 15;
+                } else if (this.label === '馬' && target.label === '弓') {
+                    dmg += 8;
+                } else if (this.label === '英' && (target.label === '馬' || target.label === '獣')) {
+                    dmg += 26;
+                }
+                if (target.label === '投') {
+                    dmg *= 3;
+                }
+                return dmg;
+            }
+
+            executeAttack(target) {
+                if (this.label === '投') return;
+
+                if (this.label === '弓') {
+                    let tc = this.getTargetCenter(target);
+                    arrows.push(new Arrow(this.x, this.y, target, tc.x, tc.y, this.attack));
+                    playShootSound();
+                } else if (this.label === '英') {
+                    playHeroSpinSound();
+                    let hitAny = false;
+                    units.forEach(u => {
+                        if (u.team !== this.team && u.hp > 0) {
+                            if (Math.hypot(u.x - this.x, u.y - this.y) <= this.range + 20) {
+                                u.hp -= this.calcDamageAgainst(u);
+                                hitAny = true;
+                            }
+                        }
+                    });
+                    if (this.team === 'player') {
+                        [enemyTownCenter, ...enemyShrines, ...enemyTowers].forEach(b => {
+                            if (b.hp > 0) {
+                                let edge = getClosestPointOnBuilding(b, this.x, this.y);
+                                if (Math.hypot(edge.x - this.x, edge.y - this.y) <= this.range + 15) {
+                                    b.hp -= this.calcDamageAgainst(b);
+                                    hitAny = true;
+                                }
+                            }
+                        });
+                    }
+                    if (!hitAny && target && target.hp > 0) {
+                        target.hp -= this.calcDamageAgainst(target);
+                    }
+                } else {
+                    target.hp -= this.calcDamageAgainst(target);
+                    if (this.label === '槍') {
+                        playSpearSound();
+                    } else if (this.label === '馬') {
+                        playCavalryStompSound();
+                    } else {
+                        playHitSound();
+                    }
+                }
+            }
+
+            draw() {
+                const viewW = canvas.width / camera.zoom;
+                const viewH = canvas.height / camera.zoom;
+                let screenX = this.x - camera.x;
+                let screenY = this.y - camera.y;
+                if (screenX < -100 || screenX > viewW + 100 || screenY < -100 || screenY > viewH + 100) return;
+
+                let drawX = screenX;
+                let drawY = screenY;
+
+                if (this.label === '工' && this.transformTarget && this.attackCooldown > 15) {
+                    drawX += (Math.random() - 0.5) * 4;
+                    drawY += (Math.random() - 0.5) * 4;
+                }
+
+                if (this.damageAnimTimer > 0) {
+                    drawX += (Math.random() - 0.5) * 6;
+                    drawY += (Math.random() - 0.5) * 6;
+                }
+
+                let cavalryJumpOffset = 0;
+                let cavalryScaleX = 1;
+                let cavalryScaleY = 1;
+                if (this.label === '馬' && this.attackAnimTimer > 0) {
+                    let progress = 1 - (this.attackAnimTimer / this.attackAnimMax);
+                    if (progress < 0.55) {
+                        let jumpPhase = progress / 0.55;
+                        cavalryJumpOffset = -Math.sin(jumpPhase * Math.PI * 0.5) * 20;
+                        cavalryScaleX = 0.94;
+                        cavalryScaleY = 1.08;
+                    } else {
+                        let stompPhase = (progress - 0.55) / 0.45;
+                        cavalryJumpOffset = -(1 - stompPhase) * 20;
+                        cavalryScaleX = 1.18 * Math.sin(stompPhase * Math.PI) + 1 * (1 - Math.sin(stompPhase * Math.PI));
+                        cavalryScaleY = 0.82 * Math.sin(stompPhase * Math.PI) + 1 * (1 - Math.sin(stompPhase * Math.PI));
+                    }
+                    drawY += cavalryJumpOffset;
+                }
+
+                let fillColor = '#0288d1';
+                let strokeColor = this.selected ? '#ffffff' : '#000000';
+
+                if (this.team === 'enemy') {
+                    if (this.label === '槍') fillColor = '#333333';
+                    else if (this.label === '弓') fillColor = '#555555';
+                    else if (this.label === '馬') fillColor = '#1f1f1f';
+                    else fillColor = '#424242';
+                    strokeColor = '#e0e0e0';
+                } else {
+                    if (this.label === '工') fillColor = '#0288d1';
+                    if (this.label === '槍') fillColor = '#388e3c';
+                    if (this.label === '弓') fillColor = '#7b1fa2';
+                    if (this.label === '馬') fillColor = '#d32f2f';
+                    if (this.label === '英') fillColor = '#ff8f00';
+                    if (this.label === '投') fillColor = '#5d4037';
+                }
+
+                if (this.label === '馬' && this.attackAnimTimer > 0 && this.attackAnimTimer < 6) {
+                    ctx.save();
+                    ctx.strokeStyle = this.team === 'enemy' ? 'rgba(220, 220, 220, 0.75)' : 'rgba(255, 235, 59, 0.75)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.ellipse(screenX, screenY + 12, 22, 9, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                ctx.beginPath();
+                if (this.label === '投') {
+                    ctx.rect(drawX - this.width / 2, drawY - this.height / 2, this.width, this.height);
+                } else if (this.label === '馬' && this.attackAnimTimer > 0) {
+                    ctx.ellipse(drawX, drawY, this.radiusX * cavalryScaleX, this.radiusY * cavalryScaleY, 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(drawX, drawY, this.radiusX, 0, Math.PI * 2);
+                }
+
+                if (this.label === '英' && this.team === 'player') {
+                    ctx.shadowColor = '#ffeb3b';
+                    ctx.shadowBlur = 15;
+                }
+
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+
+                if (this.label === '投') {
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 5;
+                    ctx.stroke();
+                    if (this.selected) {
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2.5;
+                        ctx.strokeRect(drawX - this.width / 2 - 2, drawY - this.height / 2 - 2, this.width + 4, this.height + 4);
+                    }
+                } else {
+                    ctx.strokeStyle = strokeColor;
+                    ctx.lineWidth = this.selected ? 3.5 : 1;
+                    ctx.stroke();
+                }
+                ctx.shadowBlur = 0;
+
+                if (this.label === '槍' || this.label === '英') {
+                    let isHero = (this.label === '英');
+                    let baseSpearLength = 34;
+                    let spearLength = isHero ? baseSpearLength * 1.5 : baseSpearLength;
+                    let angle = this.facingAngle;
+                    let thrustOffset = 0;
+
+                    if (this.attackAnimTimer > 0) {
+                        let animProgress = 1 - (this.attackAnimTimer / this.attackAnimMax);
+                        if (isHero) {
+                            angle += animProgress * Math.PI * 2;
+                            thrustOffset = Math.sin(animProgress * Math.PI) * 14;
+                        } else {
+                            thrustOffset = Math.sin(animProgress * Math.PI) * 18;
+                        }
+                    }
+
+                    if (isHero && this.attackAnimTimer > 0) {
+                        ctx.save();
+                        ctx.strokeStyle = 'rgba(255, 235, 59, 0.45)';
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.arc(drawX, drawY, this.radiusX + spearLength * 0.75, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+
+                    let startDist = this.radiusX * 0.45 + thrustOffset;
+                    let endDist = startDist + spearLength;
+                    let sx1 = drawX + Math.cos(angle) * startDist;
+                    let sy1 = drawY + Math.sin(angle) * startDist;
+                    let sx2 = drawX + Math.cos(angle) * endDist;
+                    let sy2 = drawY + Math.sin(angle) * endDist;
+
+                    ctx.save();
+                    if (this.team === 'enemy') {
+                        ctx.strokeStyle = '#bdbdbd';
+                    } else {
+                        ctx.strokeStyle = isHero ? '#ffd54f' : '#d7ccc8';
+                    }
+                    ctx.lineWidth = isHero ? 3.5 : 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(sx1, sy1);
+                    ctx.lineTo(sx2, sy2);
+                    ctx.stroke();
+
+                    let tipLen = isHero ? 10 : 7;
+                    let tipAngle = 0.42;
+                    if (this.team === 'enemy') {
+                        ctx.fillStyle = '#ffffff';
+                    } else {
+                        ctx.fillStyle = isHero ? '#fff9c4' : '#eceff1';
+                    }
+                    ctx.beginPath();
+                    ctx.moveTo(sx2 + Math.cos(angle) * 4, sy2 + Math.sin(angle) * 4);
+                    ctx.lineTo(sx2 - Math.cos(angle - tipAngle) * tipLen, sy2 - Math.sin(angle - tipAngle) * tipLen);
+                    ctx.lineTo(sx2 - Math.cos(angle + tipAngle) * tipLen, sy2 - Math.sin(angle + tipAngle) * tipLen);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                ctx.fillStyle = (this.label === '英') ? '#000000' : '#ffffff';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let displayLabel = (this.label === '投') ? '大盾' : (this.label === '英' ? '英' : this.label);
+                ctx.fillText(displayLabel, drawX, drawY);
+
+                if (this.hp < this.maxHp) {
+                    let barW = this.label === '投' ? 70 : 32;
+                    ctx.fillStyle = this.team === 'enemy' ? '#424242' : 'red';
+                    ctx.fillRect(drawX - barW/2, drawY - (this.label === '投' ? this.height/2 : this.radiusX) - 10, barW, 4);
+                    ctx.fillStyle = this.team === 'enemy' ? '#eeeeee' : '#00ff00';
+                    ctx.fillRect(drawX - barW/2, drawY - (this.label === '投' ? this.height/2 : this.radiusX) - 10, (this.hp / this.maxHp) * barW, 4);
+                }
+
+                if (this.label === '工' && this.transformTarget) {
+                    ctx.fillStyle = '#ffeb3b';
+                    ctx.font = '10px sans-serif';
+                    let rY = this.radiusY;
+                    let targetShrine = playerShrines.find(s => !s.isComplete);
+                    if (this.transformTarget === '英') {
+                        ctx.fillText(`英雄:${heroProgress}/1000`, drawX, drawY - rY - 12);
+                    } else if (this.transformTarget === '投') {
+                        ctx.fillText(`大盾:${siegeProgress}/800`, drawX, drawY - rY - 12);
+                    } else if (this.transformTarget === '神' && targetShrine) {
+                        ctx.fillText(`神殿:${targetShrine.hp}/2000`, drawX, drawY - rY - 12);
+                    } else {
+                        ctx.fillText(`${this.carryingWood}/${COSTS[this.transformTarget]}`, drawX, drawY - rY - 12);
+                    }
+                }
+            }
+        }
+
+        function resolveUnitCollisions() {
+            const aliveUnits = units.filter(u => u.hp > 0);
+            const len = aliveUnits.length;
+            if (len < 2) return;
+
+            for (let iter = 0; iter < 2; iter++) {
+                for (let i = 0; i < len; i++) {
+                    const a = aliveUnits[i];
+                    const ra = (a.label === '投') ? 38 : ((a.label === '英') ? 22 : 16);
+
+                    for (let j = i + 1; j < len; j++) {
+                        const b = aliveUnits[j];
+                        const rb = (b.label === '投') ? 38 : ((b.label === '英') ? 22 : 16);
+
+                        const desiredDist = (ra + rb) * 0.72;
+                        let dx = b.x - a.x;
+                        let dy = b.y - a.y;
+                        let dist = Math.hypot(dx, dy);
+
+                        if (dist < desiredDist) {
+                            if (dist < 0.001) {
+                                const randAngle = (i * 1.7 + j * 2.3) % (Math.PI * 2);
+                                dx = Math.cos(randAngle);
+                                dy = Math.sin(randAngle);
+                                dist = 1;
+                            }
+                            const overlap = (desiredDist - dist) * 0.45;
+                            const nx = dx / dist;
+                            const ny = dy / dist;
+
+                            const weightA = (a.label === '投') ? 0.2 : 1.0;
+                            const weightB = (b.label === '投') ? 0.2 : 1.0;
+                            const totalW = weightA + weightB;
+
+                            a.x -= nx * overlap * (weightA / totalW);
+                            a.y -= ny * overlap * (weightA / totalW);
+                            b.x += nx * overlap * (weightB / totalW);
+                            b.y += ny * overlap * (weightB / totalW);
+                        }
+                    }
+                }
+            }
+        }
+
+        class Arrow {
+            constructor(startX, startY, targetUnit, targetX, targetY, damage) {
+                this.startX = startX; this.startY = startY;
+                this.targetUnit = targetUnit;
+                this.targetX = targetX !== undefined ? targetX : targetUnit.x;
+                this.targetY = targetY !== undefined ? targetY : targetUnit.y;
+                this.damage = damage;
+                this.progress = 0; this.speed = 0.04; this.maxHeight = 60; this.isHit = false;
+                this.prevScreenX = null;
+                this.prevScreenY = null;
+                this.angle = Math.atan2(this.targetY - this.startY, this.targetX - this.startX);
+
+                this.isCavalryTarget = (targetUnit && targetUnit.label === '馬');
+                if (this.isCavalryTarget) {
+                    this.targetX = targetUnit.x;
+                    this.targetY = targetUnit.y;
+                }
+            }
+
+            update() {
+                if (this.isHit) return;
+                if (!this.isCavalryTarget && this.targetUnit && this.targetUnit.hp > 0) {
+                    if (isBuildingTarget(this.targetUnit)) {
+                        this.targetX = this.targetUnit.x + this.targetUnit.width / 2;
+                        this.targetY = this.targetUnit.y + this.targetUnit.height / 2;
+                    } else {
+                        this.targetX = this.targetUnit.x;
+                        this.targetY = this.targetUnit.y;
+                    }
+                }
+                this.progress += this.speed;
+                if (this.progress >= 1) {
+                    this.progress = 1;
+                    this.isHit = true;
+
+                    if (this.isCavalryTarget) {
+                        if (this.targetUnit && this.targetUnit.hp > 0 && this.damage > 0) {
+                            let distAtImpact = Math.hypot(this.targetUnit.x - this.targetX, this.targetUnit.y - this.targetY);
+                            if (distAtImpact <= this.targetUnit.radiusX + 6) {
+                                this.targetUnit.hp -= this.damage;
+                                playHitSound();
+                            }
+                        }
+                    } else if (this.targetUnit && this.targetUnit.hp > 0 && this.damage > 0) {
+                        let finalDamage = this.damage;
+                        if (this.targetUnit.label === '投') {
+                            finalDamage = Math.max(1, Math.floor(this.damage * 0.1));
+                        }
+                        this.targetUnit.hp -= finalDamage;
+                        playHitSound();
+                    }
+                }
+            }
+
+            draw() {
+                if (this.isHit) return;
+                const viewW = canvas.width / camera.zoom;
+                const viewH = canvas.height / camera.zoom;
+                let currWorldX = this.startX + (this.targetX - this.startX) * this.progress;
+                let currWorldY = this.startY + (this.targetY - this.startY) * this.progress;
+                let currX = currWorldX - camera.x;
+                let currY = currWorldY - camera.y;
+
+                const heightZ = Math.sin(this.progress * Math.PI) * this.maxHeight;
+                let drawY = currY - heightZ;
+
+                if (this.prevScreenX !== null && this.prevScreenY !== null) {
+                    let dx = currX - this.prevScreenX;
+                    let dy = drawY - this.prevScreenY;
+                    if (Math.hypot(dx, dy) > 0.1) {
+                        this.angle = Math.atan2(dy, dx);
+                    }
+                }
+                this.prevScreenX = currX;
+                this.prevScreenY = drawY;
+
+                if (currX < -50 || currX > viewW + 50 || drawY < -50 || drawY > viewH + 50) return;
+
+                const arrowLen = 16;
+                const halfLen = arrowLen / 2;
+                const cosA = Math.cos(this.angle);
+                const sinA = Math.sin(this.angle);
+
+                const tailX = currX - cosA * halfLen;
+                const tailY = drawY - sinA * halfLen;
+                const tipX = currX + cosA * halfLen;
+                const tipY = drawY + sinA * halfLen;
+
+                ctx.save();
+                ctx.strokeStyle = '#ffe082';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(tailX, tailY);
+                ctx.lineTo(tipX, tipY);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(tipX + cosA * 3, tipY + sinA * 3);
+                ctx.lineTo(tipX - Math.cos(this.angle - 0.5) * 5, tipY - Math.sin(this.angle - 0.5) * 5);
+                ctx.lineTo(tipX - Math.cos(this.angle + 0.5) * 5, tipY - Math.sin(this.angle + 0.5) * 5);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = '#ff8a65';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(tailX, tailY);
+                ctx.lineTo(tailX - Math.cos(this.angle - 0.5) * 4, tailY - Math.sin(this.angle - 0.5) * 4);
+                ctx.moveTo(tailX, tailY);
+                ctx.lineTo(tailX - Math.cos(this.angle + 0.5) * 4, tailY - Math.sin(this.angle + 0.5) * 4);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function cancelWorkerConstructionIfAny(worker) {
+            if (worker.label !== '工' || !worker.transformTarget) return;
+            const prevTarget = worker.transformTarget;
+            worker.transformTarget = null;
+            worker.carryingWood = 0;
+
+            if (prevTarget === '英') {
+                const stillWorking = units.some(u => u !== worker && u.team === 'player' && u.label === '工' && u.hp > 0 && u.transformTarget === '英');
+                if (!stillWorking) heroProgress = 0;
+            } else if (prevTarget === '投') {
+                const stillWorking = units.some(u => u !== worker && u.team === 'player' && u.label === '工' && u.hp > 0 && u.transformTarget === '投');
+                if (!stillWorking) siegeProgress = 0;
+            }
+        }
+
+        function orderTransform(type) {
+            if (isGameOver || isPaused) return;
+            initAudio();
+            let selectedWorkers = units.filter(u => u.selected && u.team === 'player' && u.label === '工');
+            if (selectedWorkers.length === 0) {
+                alert('工作兵「工」を選択してください！');
+                return;
+            }
+            if (type === '英') {
+                const alreadyBuildingHero = units.some(u => u.team === 'player' && u.label === '工' && u.hp > 0 && u.transformTarget === '英');
+                if (!alreadyBuildingHero) heroProgress = 0;
+            } else if (type === '投') {
+                let currentSiegeCount = units.filter(u => u.team === 'player' && u.label === '投').length;
+                if (currentSiegeCount >= 5) {
+                    alert('大盾はすでに最大5台作成されています！');
+                    return;
+                }
+                const alreadyBuildingSiege = units.some(u => u.team === 'player' && u.label === '工' && u.hp > 0 && u.transformTarget === '投');
+                if (!alreadyBuildingSiege) siegeProgress = 0;
+            }
+            selectedWorkers.forEach(w => {
+                if (w.transformTarget && w.transformTarget !== type) {
+                    cancelWorkerConstructionIfAny(w);
+                }
+                w.transformTarget = type;
+                w.carryingWood = 0;
+                w.targetTree = null;
+            });
+            playAckVoice();
+        }
+
+        function prepareTempleBuild() {
+            if (isGameOver || isPaused) return;
+            initAudio();
+            let selectedWorkers = units.filter(u => u.selected && u.team === 'player' && u.label === '工');
+            if (selectedWorkers.length === 0) {
+                alert('工作兵「工」を選択してください！');
+                return;
+            }
+            let incompleteShrine = playerShrines.find(s => !s.isComplete);
+            if (incompleteShrine) {
+                selectedWorkers.forEach(w => {
+                    if (w.transformTarget && w.transformTarget !== '神') {
+                        cancelWorkerConstructionIfAny(w);
+                    }
+                    w.transformTarget = '神';
+                    w.carryingWood = 0;
+                    w.targetTree = null;
+                });
+                playAckVoice();
+                return;
+            }
+
+            let completedCount = playerShrines.filter(s => s.isComplete).length;
+            if (completedCount >= 3) {
+                alert('完成した神殿はすでに最大3つ建造されています！');
+                return;
+            }
+            waitingForTempleTarget = true;
+            const centerW = screenToWorld(canvas.width / 2, canvas.height / 2);
+            templePreviewWorldX = centerW.x;
+            templePreviewWorldY = centerW.y;
+            document.getElementById('templeConfirmBar').style.display = 'flex';
+        }
+
+        function cancelTemplePlacement() {
+            waitingForTempleTarget = false;
+            document.getElementById('templeConfirmBar').style.display = 'none';
+        }
+
+        function confirmTemplePlacement() {
+            if (!waitingForTempleTarget) return;
+            let buildX = templePreviewWorldX - 50;
+            let buildY = templePreviewWorldY - 50;
+            if (isAreaOverlappingTrees(buildX, buildY, 100, 100)) {
+                alert('木がある場所には神殿を建設できません！位置をずらしてください。');
+                return;
+            }
+            cancelTemplePlacement();
+            if (!playerShrines.some(s => !s.isComplete)) {
+                playerShrines.push(new ShrineBuilding(buildX, buildY));
+            }
+            let selectedWorkers = units.filter(u => u.selected && u.team === 'player' && u.label === '工');
+            selectedWorkers.forEach(w => {
+                if (w.transformTarget && w.transformTarget !== '神') {
+                    cancelWorkerConstructionIfAny(w);
+                }
+                w.transformTarget = '神';
+                w.carryingWood = 0;
+                w.targetTree = null;
+            });
+            commandRipples.push({ x: templePreviewWorldX, y: templePreviewWorldY, progress: 0, color: '#ba68c8' });
+            playAckVoice();
+        }
+
+        function spawnEnemyTowerGarrison(tower) {
+            const patterns = [
+                ['槍', '槍', '槍', '槍', '槍', '槍'],
+                ['弓', '弓', '弓', '弓', '弓', '弓'],
+                ['馬', '馬', '馬', '馬', '馬', '馬'],
+                ['槍', '槍', '槍', '弓', '弓', '弓'],
+                ['馬', '馬', '馬', '弓', '弓', '弓']
+            ];
+            let chosen = patterns[Math.floor(Math.random() * patterns.length)];
+            let cx = tower.x + tower.width / 2;
+            let cy = tower.y + tower.height / 2;
+
+            chosen.forEach((type, idx) => {
+                let angle = (Math.PI * 2 / chosen.length) * idx;
+                let ux = cx + Math.cos(angle) * 28;
+                let uy = cy + Math.sin(angle) * 28;
+                let enemyUnit = new Unit(ux, uy, type, 'enemy');
+                units.push(enemyUnit);
+            });
+        }
+
+        function pickBuildingTarget(originX, originY, range) {
+            let candidates = units.filter(u => u.team === 'player' && u.hp > 0 && Math.hypot(originX - u.x, originY - u.y) < range);
+            if (candidates.length === 0) return null;
+
+            let siegeCandidates = candidates.filter(u => u.label === '投');
+            if (siegeCandidates.length > 0 && Math.random() < 0.8) {
+                return siegeCandidates[Math.floor(Math.random() * siegeCandidates.length)];
+            }
+            return candidates[Math.floor(Math.random() * candidates.length)];
+        }
+
+        function processBuildingBurstArrows(building, originX, originY) {
+            if (!building.burstQueue || building.burstQueue.length === 0) return;
+            for (let i = building.burstQueue.length - 1; i >= 0; i--) {
+                let shot = building.burstQueue[i];
+                shot.delay--;
+                if (shot.delay <= 0) {
+                    let target = shot.target;
+                    if (!target || target.hp <= 0) {
+                        target = pickBuildingTarget(originX, originY, building.range);
+                    }
+                    if (target && target.hp > 0) {
+                        let startX = originX + shot.offsetX;
+                        let startY = originY + shot.offsetY;
+                        arrows.push(new Arrow(startX, startY, target, target.x, target.y, building.attack));
+                        playShootSound();
+                    }
+                    building.burstQueue.splice(i, 1);
+                }
+            }
+        }
+
+        function queueBuildingScatterVolley(building, originX, originY, scatterRadius) {
+            let candidates = units.filter(u => u.team === 'player' && u.hp > 0 && Math.hypot(originX - u.x, originY - u.y) < building.range);
+            if (candidates.length === 0) return false;
+
+            let siegeCandidates = candidates.filter(u => u.label === '投');
+
+            for (let i = 0; i < 5; i++) {
+                let target;
+                if (siegeCandidates.length > 0 && Math.random() < 0.8) {
+                    target = siegeCandidates[i % siegeCandidates.length];
+                } else {
+                    target = candidates[i % candidates.length];
+                }
+                let angle = (Math.PI * 2 / 5) * i + (Math.random() - 0.5) * 0.6;
+                let dist = (0.4 + Math.random() * 0.6) * scatterRadius;
+                building.burstQueue.push({
+                    delay: i * 6,
+                    target: target,
+                    offsetX: Math.cos(angle) * dist,
+                    offsetY: Math.sin(angle) * dist
+                });
+            }
+            return true;
+        }
+
+        function formatTimeMMSS(frames) {
+            const totalSec = Math.max(0, Math.ceil(frames / 60));
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+
+        function updateHUD() {
+            const ratio = totalTimeFrames > 0 ? Math.max(0, Math.min(1, remainingTimeFrames / totalTimeFrames)) : 0;
+            const fillEl = document.getElementById('hudTimeBarFill');
+            fillEl.style.width = (ratio * 100) + '%';
+            if (ratio <= 0.15) {
+                fillEl.style.backgroundColor = '#e53935';
+            } else if (ratio <= 0.35) {
+                fillEl.style.backgroundColor = '#fdd835';
+            } else {
+                fillEl.style.backgroundColor = '#43a047';
+            }
+            document.getElementById('hudTimeText').innerText = formatTimeMMSS(remainingTimeFrames);
+
+            const aliveTowers = enemyTowers.filter(t => t.hp > 0).length;
+            const aliveShrines = enemyShrines.filter(s => s.hp > 0).length;
+            const aliveTC = enemyTownCenter.hp > 0 ? 1 : 0;
+
+            document.getElementById('hudEnemyTowers').innerText = `（${aliveTowers}/${initialEnemyTowerTotal}）`;
+            document.getElementById('hudEnemyShrines').innerText = `（${aliveShrines}/${initialEnemyShrineTotal}）`;
+            document.getElementById('hudEnemyTC').innerText = `（${aliveTC}/${initialEnemyTCTotal}）`;
+
+            let workerCount = 0;
+            let spearCount = 0;
+            let archerCount = 0;
+            let cavalryCount = 0;
+            let heroCount = 0;
+            let shieldCount = 0;
+
+            units.forEach(u => {
+                if (u.team === 'player' && u.hp > 0) {
+                    if (u.label === '工') workerCount++;
+                    else if (u.label === '槍') spearCount++;
+                    else if (u.label === '弓') archerCount++;
+                    else if (u.label === '馬') cavalryCount++;
+                    else if (u.label === '英') heroCount++;
+                    else if (u.label === '投') shieldCount++;
+                }
+            });
+
+            const totalSoldiers = workerCount + spearCount + archerCount + cavalryCount + heroCount;
+            const templeCount = playerShrines.filter(s => s.isComplete).length;
+
+            document.getElementById('hudPlayerWorker').innerText = `${workerCount} 名`;
+            document.getElementById('hudPlayerSoldiers').innerText = `${spearCount} / ${archerCount} / ${cavalryCount}`;
+            document.getElementById('hudPlayerSpecial').innerText = `${heroCount} 名 / ${shieldCount} 台`;
+            document.getElementById('hudPlayerTotal').innerText = `${totalSoldiers} / ${maxPopulation}`;
+
+            return { aliveTowers, aliveShrines, aliveTC, totalSoldiers, templeCount };
+        }
+
+        // ==========================================
+        // 部隊グループボタン制御（タップで呼出、長押しで登録）
+        // ==========================================
+        function updateGroupButtonsUI() {
+            document.querySelectorAll('.grp-btn').forEach(btn => {
+                const g = parseInt(btn.dataset.grp, 10);
+                controlGroups[g] = controlGroups[g].filter(u => u.hp > 0);
+                btn.classList.toggle('has-units', controlGroups[g].length > 0);
+            });
+        }
+
+        let lastGroupTapNum = 0;
+        let lastGroupTapTime = 0;
+
+        document.querySelectorAll('.grp-btn').forEach(btn => {
+            const grpNum = parseInt(btn.dataset.grp, 10);
+            let grpPressTimer = null;
+            let didLongPress = false;
+
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                initAudio();
+                didLongPress = false;
+                grpPressTimer = setTimeout(() => {
+                    didLongPress = true;
+                    let selectedPlayerUnits = units.filter(u => u.selected && u.team === 'player' && u.hp > 0);
+                    if (selectedPlayerUnits.length > 0) {
+                        for (let k in controlGroups) {
+                            controlGroups[k] = controlGroups[k].filter(u => !u.selected);
+                        }
+                        controlGroups[grpNum] = selectedPlayerUnits;
+                        updateGroupButtonsUI();
+                        playAckVoice();
+                        if (navigator.vibrate) navigator.vibrate(25);
+                    }
+                }, 400);
+            }, { passive: false });
+
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (grpPressTimer) {
+                    clearTimeout(grpPressTimer);
+                    grpPressTimer = null;
+                }
+                if (didLongPress || isGameOver || isPaused) return;
+
+                controlGroups[grpNum] = controlGroups[grpNum].filter(u => u.hp > 0);
+                if (controlGroups[grpNum].length > 0) {
+                    units.forEach(u => u.selected = false);
+                    controlGroups[grpNum].forEach(u => u.selected = true);
+                    playSelectVoice();
+
+                    const now = Date.now();
+                    if (lastGroupTapNum === grpNum && (now - lastGroupTapTime) < 400) {
+                        const avgX = controlGroups[grpNum].reduce((s, u) => s + u.x, 0) / controlGroups[grpNum].length;
+                        const avgY = controlGroups[grpNum].reduce((s, u) => s + u.y, 0) / controlGroups[grpNum].length;
+                        centerCameraOn(avgX, avgY);
+                    }
+                    lastGroupTapNum = grpNum;
+                    lastGroupTapTime = now;
+                }
+                updateGroupButtonsUI();
+            }, { passive: false });
+        });
+
+        // ==========================================
+        // iPhone マルチタッチ操作システム
+        // ==========================================
+        const LONG_PRESS_MS = 350;
+        const DRAG_THRESHOLD_PX = 14;
+        const DOUBLE_TAP_MS = 340;
+        const DOUBLE_TAP_DIST_PX = 42;
+
+        let touchState = 'idle'; // 'idle' | 'pending' | 'lasso' | 'long_pressed' | 'two_finger' | 'cooldown'
+        let singleTouchId = null;
+        let singleStartScreen = { x: 0, y: 0 };
+        let singleCurrScreen = { x: 0, y: 0 };
+        let singleStartTime = 0;
+        let lassoWorldPoints = [];
+
+        let lastTapTime = 0;
+        let lastTapScreen = { x: 0, y: 0 };
+        let lastTappedUnit = null;
+
+        let prevPinchMidScreen = { x: 0, y: 0 };
+        let prevPinchDist = 0;
+
+        function resetTouchGesture() {
+            touchState = 'idle';
+            singleTouchId = null;
+            lassoWorldPoints = [];
+        }
+
+        function isPointInPolygon(px, py, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x, yi = polygon[i].y;
+                const xj = polygon[j].x, yj = polygon[j].y;
+                const intersect = ((yi > py) !== (yj > py)) &&
+                    (px < (xj - xi) * (py - yi) / ((yj - yi) || 0.00001) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function isUnitInsideLasso(u, polygon) {
+            if (polygon.length < 3) return false;
+            if (u.label === '投') {
+                const hw = u.width * 0.4;
+                const hh = u.height * 0.4;
+                return isPointInPolygon(u.x, u.y, polygon) ||
+                       isPointInPolygon(u.x - hw, u.y - hh, polygon) ||
+                       isPointInPolygon(u.x + hw, u.y - hh, polygon) ||
+                       isPointInPolygon(u.x - hw, u.y + hh, polygon) ||
+                       isPointInPolygon(u.x + hw, u.y + hh, polygon);
+            }
+            const r = u.radiusX * 0.65;
+            return isPointInPolygon(u.x, u.y, polygon) ||
+                   isPointInPolygon(u.x + r, u.y, polygon) ||
+                   isPointInPolygon(u.x - r, u.y, polygon) ||
+                   isPointInPolygon(u.x, u.y + r, polygon) ||
+                   isPointInPolygon(u.x, u.y - r, polygon);
+        }
+
+        function isPointInsideUnit(u, px, py, padding = 10) {
+            if (u.label === '投') {
+                const halfW = u.width / 2 + padding;
+                const halfH = u.height / 2 + padding;
+                return Math.abs(px - u.x) <= halfW && Math.abs(py - u.y) <= halfH;
+            }
+            return Math.hypot(px - u.x, py - u.y) <= (u.radiusX + padding);
+        }
+
+        function getCommandTargetType(wx, wy) {
+            const hitMargin = 14 / camera.zoom;
+            let clickedIncompleteShrine = playerShrines.find(s => !s.isComplete && wx >= s.x - 6 && wx <= s.x + s.width + 6 && wy >= s.y - 6 && wy <= s.y + s.height + 6);
+            if (clickedIncompleteShrine) return 'work';
+
+            let clickedTree = trees.find(t => t.amount > 0 && wx >= t.x - 6 && wx <= t.x + t.size + 6 && wy >= t.y - 6 && wy <= t.y + t.size + 6);
+            if (clickedTree) return 'work';
+
+            let clickedEnemyBuilding = [enemyTownCenter, ...enemyShrines, ...enemyTowers].find(b => b.hp > 0 && wx >= b.x - 6 && wx <= b.x + b.width + 6 && wy >= b.y - 6 && wy <= b.y + b.height + 6);
+            if (clickedEnemyBuilding) return 'attack';
+
+            let clickedEnemyUnit = units.find(u => u.team === 'enemy' && u.hp > 0 && isPointInsideUnit(u, wx, wy, hitMargin));
+            if (clickedEnemyUnit) return 'attack';
+
+            return 'move';
+        }
+
+        function executeCommandAtWorld(wx, wy) {
+            let selectedUnits = units.filter(u => u.selected && u.team === 'player' && u.hp > 0);
+            if (selectedUnits.length === 0) return;
+
+            const hitMargin = 14 / camera.zoom;
+            let clickedTree = trees.find(t => t.amount > 0 && wx >= t.x - 6 && wx <= t.x + t.size + 6 && wy >= t.y - 6 && wy <= t.y + t.size + 6);
+            let clickedIncompleteShrine = playerShrines.find(s => !s.isComplete && wx >= s.x - 6 && wx <= s.x + s.width + 6 && wy >= s.y - 6 && wy <= s.y + s.height + 6);
+            let clickedEnemyBuilding = [enemyTownCenter, ...enemyShrines, ...enemyTowers].find(b => b.hp > 0 && wx >= b.x - 6 && wx <= b.x + b.width + 6 && wy >= b.y - 6 && wy <= b.y + b.height + 6);
+            let clickedEnemyUnit = units.find(u => u.team === 'enemy' && u.hp > 0 && isPointInsideUnit(u, wx, wy, hitMargin));
+
+            let rippleColor = '#00e5ff';
+
+            if (clickedIncompleteShrine) {
+                selectedUnits.forEach(u => {
+                    if (u.label === '工') {
+                        if (u.transformTarget && u.transformTarget !== '神') {
+                            cancelWorkerConstructionIfAny(u);
+                        }
+                        u.transformTarget = '神';
+                        u.carryingWood = 0;
+                        u.targetTree = null;
+                        u.manualMove = false;
+                    }
+                });
+                rippleColor = '#ffeb3b';
+            } else if (clickedTree) {
+                selectedUnits.forEach(u => {
+                    if (u.label === '工') {
+                        cancelWorkerConstructionIfAny(u);
+                        u.targetTree = clickedTree;
+                        u.targetX = clickedTree.x + 16;
+                        u.targetY = clickedTree.y + 16;
+                        u.manualMove = false;
+                    }
+                });
+                rippleColor = '#ffeb3b';
+            } else if (clickedEnemyBuilding || clickedEnemyUnit) {
+                let target = clickedEnemyBuilding || clickedEnemyUnit;
+                selectedUnits.forEach(u => {
+                    if (u.label === '工') {
+                        cancelWorkerConstructionIfAny(u);
+                        u.targetTree = null;
+                    }
+                    u.targetUnit = target;
+                    u.manualMove = false;
+                    u.useLateralBoost = false;
+                });
+                rippleColor = '#ff5252';
+            } else {
+                selectedUnits.forEach(u => {
+                    if (u.label === '工') {
+                        cancelWorkerConstructionIfAny(u);
+                        u.targetTree = null;
+                    }
+                    u.manualMove = true;
+                });
+                applyDirectionalFormation(selectedUnits, wx, wy);
+                rippleColor = '#00e5ff';
+            }
+
+            commandRipples.push({ x: wx, y: wy, progress: 0, color: rippleColor });
+            playAckVoice();
+            if (navigator.vibrate) navigator.vibrate(20);
+        }
+
+        document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+        document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+        document.addEventListener('gestureend', e => e.preventDefault(), { passive: false });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            initAudio();
+
+            if (e.touches.length >= 2) {
+                touchState = 'two_finger';
+                singleTouchId = null;
+                lassoWorldPoints = [];
+
+                const t0 = e.touches[0];
+                const t1 = e.touches[1];
+                prevPinchMidScreen = {
+                    x: (t0.clientX + t1.clientX) / 2,
+                    y: (t0.clientY + t1.clientY) / 2
+                };
+                prevPinchDist = Math.max(10, Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY));
+                return;
+            }
+
+            if (e.touches.length === 1 && touchState === 'idle') {
+                const t = e.touches[0];
+                singleTouchId = t.identifier;
+                singleStartScreen = { x: t.clientX, y: t.clientY };
+                singleCurrScreen = { x: t.clientX, y: t.clientY };
+                singleStartTime = performance.now();
+                touchState = 'pending';
+
+                const wPos = screenToWorld(t.clientX, t.clientY);
+                if (waitingForTempleTarget && !isGameOver && !isPaused) {
+                    templePreviewWorldX = wPos.x;
+                    templePreviewWorldY = wPos.y;
+                } else {
+                    lassoWorldPoints = [wPos];
+                }
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length >= 2) {
+                const t0 = e.touches[0];
+                const t1 = e.touches[1];
+                const currMidScreen = {
+                    x: (t0.clientX + t1.clientX) / 2,
+                    y: (t0.clientY + t1.clientY) / 2
+                };
+                const currPinchDist = Math.max(10, Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY));
+
+                if (touchState !== 'two_finger') {
+                    touchState = 'two_finger';
+                    prevPinchMidScreen = currMidScreen;
+                    prevPinchDist = currPinchDist;
+                    return;
+                }
+
+                const anchorWorld = screenToWorld(prevPinchMidScreen.x, prevPinchMidScreen.y);
+                const scaleFactor = currPinchDist / prevPinchDist;
+                const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, camera.zoom * scaleFactor));
+
+                camera.zoom = newZoom;
+                camera.x = anchorWorld.x - currMidScreen.x / newZoom;
+                camera.y = anchorWorld.y - currMidScreen.y / newZoom;
+                clampCamera();
+
+                prevPinchMidScreen = currMidScreen;
+                prevPinchDist = currPinchDist;
+                return;
+            }
+
+            if (e.touches.length === 1 && (touchState === 'pending' || touchState === 'lasso')) {
+                const t = Array.from(e.touches).find(pt => pt.identifier === singleTouchId) || e.touches[0];
+                singleCurrScreen = { x: t.clientX, y: t.clientY };
+                const wPos = screenToWorld(t.clientX, t.clientY);
+
+                if (waitingForTempleTarget && !isGameOver && !isPaused) {
+                    templePreviewWorldX = wPos.x;
+                    templePreviewWorldY = wPos.y;
+                    return;
+                }
+
+                if (isGameOver || isPaused) return;
+
+                const moveDist = Math.hypot(t.clientX - singleStartScreen.x, t.clientY - singleStartScreen.y);
+                if (touchState === 'pending' && moveDist >= DRAG_THRESHOLD_PX) {
+                    touchState = 'lasso';
+                }
+
+                if (touchState === 'lasso') {
+                    const lastPt = lassoWorldPoints[lassoWorldPoints.length - 1];
+                    if (!lastPt || Math.hypot(wPos.x - lastPt.x, wPos.y - lastPt.y) >= 8 / camera.zoom) {
+                        lassoWorldPoints.push(wPos);
+                    }
+                }
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length > 0) {
+                if (touchState === 'two_finger' && e.touches.length === 1) {
+                    touchState = 'cooldown';
+                }
+                return;
+            }
+
+            if (!isGameOver && !isPaused) {
+                if (touchState === 'pending' && !waitingForTempleTarget) {
+                    const wPos = screenToWorld(singleCurrScreen.x, singleCurrScreen.y);
+                    const tapHitMargin = 14 / camera.zoom;
+                    let clickedSelf = units.find(u => u.team === 'player' && u.hp > 0 && u.label === '投' && isPointInsideUnit(u, wPos.x, wPos.y, tapHitMargin))
+                                   || units.find(u => u.team === 'player' && u.hp > 0 && isPointInsideUnit(u, wPos.x, wPos.y, tapHitMargin));
+
+                    const now = performance.now();
+                    const isDoubleTap = (now - lastTapTime < DOUBLE_TAP_MS) &&
+                                        (Math.hypot(singleCurrScreen.x - lastTapScreen.x, singleCurrScreen.y - lastTapScreen.y) < DOUBLE_TAP_DIST_PX);
+
+                    if (clickedSelf) {
+                        if (isDoubleTap && lastTappedUnit && lastTappedUnit.label === clickedSelf.label) {
+                            const viewW = canvas.width / camera.zoom;
+                            const viewH = canvas.height / camera.zoom;
+                            units.forEach(u => {
+                                if (u.team === 'player' && u.hp > 0 && u.label === clickedSelf.label) {
+                                    const sx = u.x - camera.x;
+                                    const sy = u.y - camera.y;
+                                    if (sx >= 0 && sx <= viewW && sy >= 0 && sy <= viewH) {
+                                        u.selected = true;
+                                    }
+                                }
+                            });
+                        } else {
+                            units.forEach(u => u.selected = false);
+                            clickedSelf.selected = true;
+                        }
+                        playSelectVoice();
+                        lastTappedUnit = clickedSelf;
+                    } else {
+                        units.forEach(u => u.selected = false);
+                        lastTappedUnit = null;
+                    }
+
+                    lastTapTime = now;
+                    lastTapScreen = { x: singleCurrScreen.x, y: singleCurrScreen.y };
+
+                } else if (touchState === 'lasso' && !waitingForTempleTarget) {
+                    if (lassoWorldPoints.length >= 3) {
+                        let anySelected = false;
+                        units.forEach(u => {
+                            if (u.team === 'player' && u.hp > 0) {
+                                u.selected = isUnitInsideLasso(u, lassoWorldPoints);
+                                if (u.selected) anySelected = true;
+                            }
+                        });
+                        if (anySelected) playSelectVoice();
+                    }
+                }
+            }
+
+            resetTouchGesture();
+        }, { passive: false });
+
+        canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            resetTouchGesture();
+        }, { passive: false });
+
+        function applyDirectionalFormation(selectedUnits, destX, destY) {
+            let avgX = selectedUnits.reduce((sum, u) => sum + u.x, 0) / selectedUnits.length;
+            let avgY = selectedUnits.reduce((sum, u) => sum + u.y, 0) / selectedUnits.length;
+            let angle = Math.atan2(destY - avgY, destX - avgX);
+
+            const typeOrder = ['投', '英', '馬', '槍', '弓', '工'];
+            let grouped = {};
+            typeOrder.forEach(t => grouped[t] = []);
+            selectedUnits.forEach(u => {
+                if (grouped[u.label]) grouped[u.label].push(u);
+                else grouped['工'].push(u);
+            });
+
+            let currentForwardOffset = 0;
+            const spacingX = 26;
+            const spacingY = 24;
+            const maxCols = 3;
+
+            typeOrder.forEach(type => {
+                let list = grouped[type];
+                if (!list || list.length === 0) return;
+
+                let colsForType = (type === '投') ? list.length : maxCols;
+                let itemSpacingX = (type === '投') ? 82 : spacingX;
+                let itemSpacingY = (type === '投') ? 82 : spacingY;
+
+                let totalRows = Math.ceil(list.length / colsForType);
+
+                for (let r = 0; r < totalRows; r++) {
+                    let rowUnits = list.slice(r * colsForType, (r + 1) * colsForType);
+                    let rowWidth = (rowUnits.length - 1) * itemSpacingX;
+
+                    rowUnits.forEach((u, colIndex) => {
+                        let lateralOffset = (colIndex * itemSpacingX) - (rowWidth / 2);
+                        let fwd = -currentForwardOffset;
+
+                        u.targetX = destX + (fwd * Math.cos(angle) - lateralOffset * Math.sin(angle));
+                        u.targetY = destY + (fwd * Math.sin(angle) + lateralOffset * Math.cos(angle));
+                        u.targetUnit = null;
+                        if (u.label === '投') {
+                            u.formationAngle = angle;
+                            u.useLateralBoost = true;
+                        }
+                    });
+                    currentForwardOffset += itemSpacingY;
+                }
+                currentForwardOffset += 12;
+            });
+        }
+
+        // ==========================================
+        // メインループ（更新＆描画）
+        // ==========================================
+        function update() {
+            // 長押し判定
+            if (!isGameOver && !isPaused && touchState === 'pending') {
+                const heldMs = performance.now() - singleStartTime;
+                if (heldMs >= LONG_PRESS_MS) {
+                    touchState = 'long_pressed';
+                    if (waitingForTempleTarget) {
+                        confirmTemplePlacement();
+                    } else {
+                        const wPos = screenToWorld(singleCurrScreen.x, singleCurrScreen.y);
+                        executeCommandAtWorld(wPos.x, wPos.y);
+                    }
+                }
+            }
+
+            commandRipples.forEach(r => { r.progress += 0.04; });
+            commandRipples = commandRipples.filter(r => r.progress < 1.0);
+
+            if (isGameOver || isPaused) return;
+            if (woodCutSoundTimer > 0) woodCutSoundTimer--;
+
+            remainingTimeFrames--;
+            if (remainingTimeFrames <= 0) {
+                remainingTimeFrames = 0;
+                updateHUD();
+                triggerEndModal(false, '制限時間切れになりました…');
+                return;
+            }
+
+            // 敵の塔の攻撃＆破壊時駐留兵出現
+            enemyTowers.forEach(t => {
+                if (t.hp > 0) {
+                    processBuildingBurstArrows(t, t.x + 30, t.y + 30);
+                    if (t.attackCooldown > 0) t.attackCooldown--;
+                    if (t.attackCooldown <= 0) {
+                        if (queueBuildingScatterVolley(t, t.x + 30, t.y + 30, 22)) {
+                            t.attackCooldown = 60;
+                        }
+                    }
+                } else if (!t.garrisonSpawned) {
+                    t.garrisonSpawned = true;
+                    spawnEnemyTowerGarrison(t);
+                }
+            });
+
+            // 敵の町の中心の攻撃
+            if (enemyTownCenter.hp > 0) {
+                processBuildingBurstArrows(enemyTownCenter, enemyTownCenter.x + 70, enemyTownCenter.y + 50);
+                if (enemyTownCenter.attackCooldown > 0) enemyTownCenter.attackCooldown--;
+                if (enemyTownCenter.attackCooldown <= 0) {
+                    if (queueBuildingScatterVolley(enemyTownCenter, enemyTownCenter.x + 70, enemyTownCenter.y + 50, 42)) {
+                        enemyTownCenter.attackCooldown = 50;
+                    }
+                }
+            }
+
+            // 敵の神殿の兵士駐留・生成・攻撃被弾時の一斉出現システム
+            const enemySpawnFrames = gameSettings.enemySpawnSec * 60;
+            const enemyCap = gameSettings.enemyShrineCap;
+            enemyShrines.forEach(s => {
+                if (s.hp < s.prevHp && s.garrison.length > 0) {
+                    let shrineCenterX = s.x + s.width / 2;
+                    let shrineCenterY = s.y + s.height / 2;
+                    let nearestPlayer = null;
+                    let minDist = Infinity;
+                    units.forEach(u => {
+                        if (u.team === 'player' && u.hp > 0) {
+                            let d = Math.hypot(u.x - shrineCenterX, u.y - shrineCenterY);
+                            if (d < minDist) {
+                                minDist = d;
+                                nearestPlayer = u;
+                            }
+                        }
+                    });
+
+                    s.garrison.forEach((chosenType, idx) => {
+                        let angle = (Math.PI * 2 / s.garrison.length) * idx + (Math.random() - 0.5) * 0.3;
+                        let sx = shrineCenterX + Math.cos(angle) * 58;
+                        let sy = shrineCenterY + Math.sin(angle) * 58;
+                        let newEnemy = new Unit(sx, sy, chosenType, 'enemy');
+                        if (nearestPlayer) {
+                            newEnemy.targetUnit = nearestPlayer;
+                        }
+                        units.push(newEnemy);
+                    });
+                    s.garrison = [];
+                }
+                s.prevHp = s.hp;
+
+                if (s.hp <= 0) return;
+
+                if (s.garrison.length < enemyCap) {
+                    s.spawnTimer++;
+                    if (s.spawnTimer >= enemySpawnFrames) {
+                        s.spawnTimer = 0;
+                        const types = ['槍', '弓', '馬'];
+                        let chosenType = types[Math.floor(Math.random() * types.length)];
+                        s.garrison.push(chosenType);
+                        s.hasEverSpawned = true;
+                    }
+                } else {
+                    s.spawnTimer = 0;
+                }
+            });
+
+            const prevCount = units.length;
+            units = units.filter(u => u.hp > 0);
+            if (units.length !== prevCount) updateGroupButtonsUI();
+            arrows = arrows.filter(a => !a.isHit);
+
+            units.forEach(u => u.update());
+            resolveUnitCollisions();
+            arrows.forEach(a => a.update());
+            playerShrines.forEach(s => s.update());
+
+            let completedShrines = playerShrines.filter(s => s.isComplete);
+            let templeCount = completedShrines.length;
+            let totalPlayerUnits = units.filter(u => u.team === 'player' && u.label !== '投' && u.hp > 0).length;
+
+            // 完成した神殿から工作兵を1人ずつ復活
+            const playerRespawnFrames = gameSettings.playerRespawnSec * 60;
+            if (totalPlayerUnits < maxPopulation && templeCount > 0) {
+                shrineRespawnTimer++;
+                if (shrineRespawnTimer >= playerRespawnFrames) {
+                    shrineRespawnTimer = 0;
+                    for (let i = 0; i < completedShrines.length; i++) {
+                        if (totalPlayerUnits >= maxPopulation) break;
+                        let shrine = completedShrines[i];
+                        units.push(new Unit(
+                            shrine.x + shrine.width / 2 + (Math.random() - 0.5) * 40,
+                            shrine.y + shrine.height + 20,
+                            '工',
+                            'player'
+                        ));
+                        totalPlayerUnits++;
+                        battleStats.respawnedWorkers++;
+                    }
+                }
+            } else {
+                shrineRespawnTimer = 0;
+            }
+
+            const status = updateHUD();
+
+            // 勝利判定
+            const aliveEnemyUnits = units.filter(u => u.team === 'enemy' && u.hp > 0).length;
+            if (status.aliveTowers === 0 && status.aliveShrines === 0 && status.aliveTC === 0 && aliveEnemyUnits === 0) {
+                const elapsedFrames = totalTimeFrames - remainingTimeFrames;
+                triggerEndModal(true, `敵要塞と敵軍を完全に殲滅しました！（攻略時間: ${formatTimeMMSS(elapsedFrames)}）`);
+                return;
+            }
+
+            // 敗北判定
+            if (status.totalSoldiers === 0 && status.templeCount === 0) {
+                triggerEndModal(false, '自軍が全滅しました…');
+                return;
+            }
+        }
+
+        function triggerEndModal(isVictory, desc) {
+            isGameOver = true;
+            isViewingMap = false;
+            resetTouchGesture();
+
+            const box = document.getElementById('resultBox');
+            const title = document.getElementById('resTitle');
+            if (isVictory) {
+                box.classList.add('victory');
+                title.innerText = 'VICTORY!';
+            } else {
+                box.classList.remove('victory');
+                title.innerText = 'GAME OVER';
+            }
+            document.getElementById('resDesc').innerText = desc;
+
+            const destroyedTowers = enemyTowers.filter(t => t.hp <= 0).length;
+            const destroyedShrines = enemyShrines.filter(s => s.hp <= 0).length;
+            const destroyedTC = enemyTownCenter.hp <= 0 ? 1 : 0;
+            const totalEnemyKilled = battleStats.killedEnemySpear + battleStats.killedEnemyArcher + battleStats.killedEnemyCavalry + battleStats.killedEnemyOther;
+            const totalUnitsTrained = battleStats.createdSpear + battleStats.createdArcher + battleStats.createdCavalry + battleStats.createdHero;
+            const survivingSoldiers = units.filter(u => u.team === 'player' && u.label !== '投' && u.hp > 0).length;
+            const elapsedFrames = totalTimeFrames - remainingTimeFrames;
+
+            const militaryScore = (totalEnemyKilled * 45) + (destroyedTowers * 350) + (destroyedShrines * 600) + (destroyedTC * 1500) - (battleStats.lostPlayerUnits * 15);
+            const productionScore = (battleStats.createdSpear * 60) + (battleStats.createdArcher * 75) + (battleStats.createdCavalry * 90) + (battleStats.createdHero * 700) + (battleStats.createdShield * 500);
+            const economyScore = Math.floor(battleStats.woodHarvested * 0.4) + (battleStats.builtShrines * 800) + (battleStats.respawnedWorkers * 40);
+            const timeBonus = isVictory ? Math.floor((remainingTimeFrames / 60) * 3) : 0;
+            const totalScore = Math.max(0, militaryScore + productionScore + economyScore + timeBonus);
+
+            let rank = 'C';
+            if (isVictory && totalScore >= 18000) rank = 'S+';
+            else if (isVictory && totalScore >= 13000) rank = 'S';
+            else if (isVictory && totalScore >= 9000) rank = 'A';
+            else if (totalScore >= 5000) rank = 'B';
+
+            document.getElementById('resTotalScore').innerText = `${totalScore.toLocaleString()} pt`;
+            document.getElementById('resSubScores').innerText = `${Math.max(0, militaryScore).toLocaleString()} / ${productionScore.toLocaleString()} / ${economyScore.toLocaleString()}`;
+            document.getElementById('resRank').innerText = rank;
+
+            const gridHTML = `
+                <div class="stat-card">
+                    <div class="stat-card-title mil">■ 軍事戦績</div>
+                    <div class="stat-line"><span>撃破した敵兵（合計）</span><span>${totalEnemyKilled} 名</span></div>
+                    <div class="stat-line"><span> ├ 敵 槍兵撃破</span><span>${battleStats.killedEnemySpear} 名</span></div>
+                    <div class="stat-line"><span> ├ 敵 弓兵撃破</span><span>${battleStats.killedEnemyArcher} 名</span></div>
+                    <div class="stat-line"><span> └ 敵 騎兵撃破</span><span>${battleStats.killedEnemyCavalry} 名</span></div>
+                    <div class="stat-line"><span>破壊した防衛塔</span><span>${destroyedTowers} / ${initialEnemyTowerTotal} 塔</span></div>
+                    <div class="stat-line"><span>破壊した敵神殿</span><span>${destroyedShrines} / ${initialEnemyShrineTotal} 棟</span></div>
+                    <div class="stat-line"><span>破壊した町の中心</span><span>${destroyedTC} / ${initialEnemyTCTotal} 棟</span></div>
+                    <div class="stat-line"><span>失った自軍兵士</span><span>${battleStats.lostPlayerUnits} 名</span></div>
+                    <div class="stat-line"><span>失った大盾</span><span>${battleStats.lostPlayerShields} 台</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-title prod">■ 生産・編成戦績</div>
+                    <div class="stat-line"><span>訓練した戦闘兵合計</span><span>${totalUnitsTrained} 名</span></div>
+                    <div class="stat-line"><span> ├ 槍兵の作成数</span><span>${battleStats.createdSpear} 名</span></div>
+                    <div class="stat-line"><span> ├ 弓兵の作成数</span><span>${battleStats.createdArcher} 名</span></div>
+                    <div class="stat-line"><span> ├ 騎兵の作成数</span><span>${battleStats.createdCavalry} 名</span></div>
+                    <div class="stat-line"><span> └ 英雄の育成数</span><span>${battleStats.createdHero} 名</span></div>
+                    <div class="stat-line"><span>建造した大盾の数</span><span>${battleStats.createdShield} 台</span></div>
+                    <div class="stat-line"><span>残存自軍兵力</span><span>${survivingSoldiers} 名</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-title econ">■ 経済・信仰・時間</div>
+                    <div class="stat-line"><span>伐採した木材総量</span><span>${battleStats.woodHarvested.toLocaleString()}</span></div>
+                    <div class="stat-line"><span>建造した自軍神殿</span><span>${battleStats.builtShrines} 棟</span></div>
+                    <div class="stat-line"><span>神殿で復活した人数</span><span>${battleStats.respawnedWorkers} 名</span></div>
+                    <div class="stat-line"><span>経過時間</span><span>${formatTimeMMSS(elapsedFrames)}</span></div>
+                    <div class="stat-line"><span>残り制限時間</span><span>${formatTimeMMSS(remainingTimeFrames)}</span></div>
+                    <div class="stat-line"><span>タイムボーナス</span><span>+${timeBonus.toLocaleString()} pt</span></div>
+                </div>
+            `;
+            document.getElementById('resStatsGrid').innerHTML = gridHTML;
+            document.getElementById('gameOverModal').style.display = 'flex';
+        }
+
+        function enterViewMapMode() {
+            isViewingMap = true;
+            document.getElementById('gameOverModal').style.display = 'none';
+            document.getElementById('viewMapBar').style.display = 'flex';
+        }
+
+        function exitViewMapMode() {
+            isViewingMap = false;
+            document.getElementById('viewMapBar').style.display = 'none';
+            document.getElementById('gameOverModal').style.display = 'flex';
+        }
+
+        function drawBuilding(b, fillColor) {
+            const viewW = canvas.width / camera.zoom;
+            const viewH = canvas.height / camera.zoom;
+            let sx = b.x - camera.x;
+            let sy = b.y - camera.y;
+            if (sx < -200 || sx > viewW + 200 || sy < -200 || sy > viewH + 200) return;
+
+            ctx.fillStyle = fillColor;
+            ctx.fillRect(sx, sy, b.width, b.height);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx, sy, b.width, b.height);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(b.name, sx + b.width / 2, sy + b.height / 2);
+
+            if (b.hp < b.maxHp) {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(sx, sy - 10, b.width, 5);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(sx, sy - 10, (b.hp / b.maxHp) * b.width, 5);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.scale(camera.zoom, camera.zoom);
+
+            // ワールド外周枠
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(-camera.x, -camera.y, WORLD_WIDTH, WORLD_HEIGHT);
+
+            if (enemyTownCenter.hp > 0) drawBuilding(enemyTownCenter, '#880e4f');
+            enemyShrines.forEach(s => { if (s.hp > 0) drawBuilding(s, '#ad1457'); });
+            enemyTowers.forEach(t => { if (t.hp > 0) drawBuilding(t, '#616161'); });
+
+            playerShrines.forEach(s => s.draw());
+
+            trees.forEach(t => t.draw());
+            units.forEach(u => u.draw());
+            arrows.forEach(a => a.draw());
+
+            // 神殿建設予定地プレビュー
+            if (waitingForTempleTarget) {
+                let worldBuildX = templePreviewWorldX - 50;
+                let worldBuildY = templePreviewWorldY - 50;
+                let previewX = worldBuildX - camera.x;
+                let previewY = worldBuildY - camera.y;
+                let blockedByTree = isAreaOverlappingTrees(worldBuildX, worldBuildY, 100, 100);
+
+                ctx.save();
+                ctx.fillStyle = blockedByTree ? 'rgba(211, 47, 47, 0.45)' : 'rgba(156, 39, 176, 0.35)';
+                ctx.fillRect(previewX, previewY, 100, 100);
+                ctx.strokeStyle = blockedByTree ? '#ff5252' : '#ffeb3b';
+                ctx.lineWidth = 2.5;
+                ctx.setLineDash([6, 4]);
+                ctx.strokeRect(previewX, previewY, 100, 100);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(
+                    blockedByTree ? '木がある場所には建設不可' : '神殿予定地',
+                    previewX + 50,
+                    previewY - 12
+                );
+                ctx.restore();
+            }
+
+            // コマンド確定波紋エフェクト
+            commandRipples.forEach(r => {
+                const rx = r.x - camera.x;
+                const ry = r.y - camera.y;
+                const rad = 10 + r.progress * 26;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+                ctx.strokeStyle = r.color;
+                ctx.globalAlpha = Math.max(0, 1 - r.progress);
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // 投げ縄選択ライン
+            if (touchState === 'lasso' && lassoWorldPoints.length >= 2) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(lassoWorldPoints[0].x - camera.x, lassoWorldPoints[0].y - camera.y);
+                for (let i = 1; i < lassoWorldPoints.length; i++) {
+                    ctx.lineTo(lassoWorldPoints[i].x - camera.x, lassoWorldPoints[i].y - camera.y);
+                }
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0, 255, 100, 0.16)';
+                ctx.fill();
+                ctx.strokeStyle = '#00ff66';
+                ctx.lineWidth = 2.5 / camera.zoom;
+                ctx.setLineDash([6 / camera.zoom, 4 / camera.zoom]);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            // 長押し進行リング（スクリーン座標）
+            if (!isGameOver && !isPaused && touchState === 'pending') {
+                const heldMs = performance.now() - singleStartTime;
+                if (heldMs > 75) {
+                    const progress = Math.min(1, heldMs / LONG_PRESS_MS);
+                    const hasSelected = units.some(u => u.selected && u.team === 'player' && u.hp > 0);
+                    if (hasSelected || waitingForTempleTarget) {
+                        let ringColor = '#00e5ff';
+                        if (waitingForTempleTarget) {
+                            ringColor = '#ba68c8';
+                        } else {
+                            const wPos = screenToWorld(singleCurrScreen.x, singleCurrScreen.y);
+                            const tType = getCommandTargetType(wPos.x, wPos.y);
+                            if (tType === 'attack') ringColor = '#ff5252';
+                            else if (tType === 'work') ringColor = '#ffeb3b';
+                        }
+
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(singleCurrScreen.x, singleCurrScreen.y, 34, 0, Math.PI * 2);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                        ctx.lineWidth = 4;
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.arc(singleCurrScreen.x, singleCurrScreen.y, 34, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+                        ctx.strokeStyle = ringColor;
+                        ctx.lineWidth = 4.5;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        updateBGMVolume(40);
+        refreshProfileDropdown();
+        syncSettingLabels();
+        initGame();
+        loop();
+    </script>
+</body>
+</html>
