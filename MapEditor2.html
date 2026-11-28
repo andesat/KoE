@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="KoE2 MapEditor">
+    <title>KoE2 マップエディタ (iPhone版)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            background-color: #111;
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Helvetica Neue', Arial, sans-serif;
+            color: #e0e0e0;
+        }
+
+        #editorWrapper {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas#editorCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-color: #0d0d0d;
+            touch-action: none;
+        }
+
+        /* 上部HUDバー（Safe Area対応） */
+        #topHUD {
+            position: absolute;
+            top: max(8px, env(safe-area-inset-top));
+            left: max(8px, env(safe-area-inset-left));
+            right: max(8px, env(safe-area-inset-right));
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        .hud-group {
+            pointer-events: auto;
+            background-color: rgba(20, 20, 20, 0.86);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 10px;
+            padding: 5px 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            font-size: 11px;
+            overflow-x: auto;
+        }
+        .hud-group::-webkit-scrollbar {
+            display: none;
+        }
+
+        button {
+            background-color: #37474f;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.15s;
+            white-space: nowrap;
+        }
+        button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        button.active-tool {
+            background-color: #2e7d32;
+            border-color: #81c784;
+            box-shadow: 0 0 8px rgba(129, 199, 132, 0.55);
+        }
+        button.tool-player.active-tool {
+            background-color: #0277bd;
+            border-color: #81d4fa;
+            box-shadow: 0 0 8px rgba(129, 212, 250, 0.55);
+        }
+        button.tool-enemy.active-tool {
+            background-color: #ad1457;
+            border-color: #f48fb1;
+            box-shadow: 0 0 8px rgba(244, 143, 177, 0.55);
+        }
+        button.tool-tower.active-tool {
+            background-color: #546e7a;
+            border-color: #cfd8dc;
+            box-shadow: 0 0 8px rgba(207, 216, 220, 0.55);
+        }
+        button.tool-erase.active-tool {
+            background-color: #c62828;
+            border-color: #ef9a9a;
+            box-shadow: 0 0 8px rgba(239, 154, 154, 0.55);
+        }
+        button.action-primary { background-color: #00897b; }
+        button.action-warn { background-color: #d84315; }
+        button.drawer-toggle { background-color: #1976d2; border-color: #90caf9; }
+
+        /* 右上ミニマップ */
+        #minimapBox {
+            position: absolute;
+            top: calc(max(8px, env(safe-area-inset-top)) + 48px);
+            right: max(8px, env(safe-area-inset-right));
+            width: 120px;
+            height: 120px;
+            background-color: rgba(15, 15, 15, 0.88);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-radius: 8px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+            z-index: 25;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas#minimapCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 座標・ステータスバッジ（左上ミニ情報） */
+        #coordBadge {
+            position: absolute;
+            top: calc(max(8px, env(safe-area-inset-top)) + 48px);
+            left: max(8px, env(safe-area-inset-left));
+            background-color: rgba(20, 20, 20, 0.78);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+            padding: 5px 9px;
+            font-size: 11px;
+            color: #cfd8dc;
+            pointer-events: none;
+            z-index: 20;
+            line-height: 1.4;
+        }
+
+        /* 下部クイックツールバー（常時表示のツール切替） */
+        #bottomQuickBar {
+            position: absolute;
+            bottom: max(10px, env(safe-area-inset-bottom));
+            left: max(8px, env(safe-area-inset-left));
+            right: max(8px, env(safe-area-inset-right));
+            background-color: rgba(20, 20, 20, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow-x: auto;
+            z-index: 30;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+        }
+        #bottomQuickBar::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* 詳細設定・入出力ドロワーパネル */
+        #drawerPanel {
+            display: none;
+            position: absolute;
+            top: calc(max(8px, env(safe-area-inset-top)) + 48px);
+            left: max(8px, env(safe-area-inset-left));
+            width: min(330px, 92vw);
+            max-height: calc(100dvh - 130px);
+            background-color: rgba(24, 24, 24, 0.96);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 12px;
+            padding: 12px;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            z-index: 40;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.85);
+        }
+        #drawerPanel.open {
+            display: flex;
+        }
+
+        .section-box {
+            background-color: #262626;
+            border: 1px solid #383838;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .section-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #81c784;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            gap: 8px;
+        }
+        .control-row input[type="range"] {
+            flex-grow: 1;
+            accent-color: #81c784;
+        }
+        .control-row input[type="text"],
+        .control-row select {
+            background-color: #141414;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 165px;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 11px;
+            color: #bbb;
+        }
+        .stats-grid span b {
+            color: #81c784;
+        }
+        .stats-grid span b.enemy-num {
+            color: #ef9a9a;
+        }
+        .stats-grid span b.player-num {
+            color: #81d4fa;
+        }
+        .stats-grid span b.warn-num {
+            color: #ffab40;
+        }
+
+        .btn-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .hint-text {
+            font-size: 10.5px;
+            color: #9e9e9e;
+            line-height: 1.4;
+        }
+
+        /* JSONコピー用モーダル */
+        #jsonTextModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            touch-action: pan-y;
+        }
+        .modal-inner {
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 12px;
+            padding: 14px;
+            width: min(460px, 94vw);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #jsonOutputArea {
+            width: 100%;
+            height: 220px;
+            background: #111;
+            color: #81c784;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+    </style>
+</head>
+<body>
+
+<div id="editorWrapper">
+    <canvas id="editorCanvas"></canvas>
+
+    <!-- 上部HUD -->
+    <div id="topHUD">
+        <div class="hud-group">
+            <button id="drawerBtn" class="drawer-toggle" onclick="toggleDrawer()">設定・保存</button>
+            <button id="undoBtn" onclick="undo()" disabled>戻す</button>
+            <button style="background:#0277bd;" onclick="focusCameraOnPlayer()">自軍へ</button>
+            <button style="background:#ad1457;" onclick="focusCameraOnEnemy()">敵拠点へ</button>
+        </div>
+        <div class="hud-group">
+            <span><b id="hudZoom">45%</b></span>
+            <button style="padding:5px 8px;" onclick="setZoom(zoom * 1.25)">＋</button>
+            <button style="padding:5px 8px;" onclick="setZoom(zoom / 1.25)">－</button>
+        </div>
+    </div>
+
+    <!-- 左上ステータスバッジ -->
+    <div id="coordBadge">
+        <div>座標: (<b id="hudX">1500</b>, <b id="hudY">1500</b>)</div>
+        <div>防衛塔: <b id="hudTowerCount" style="color:#ef9a9a;">5</b>/10塔 ｜ 木: <b id="hudTreeCount" style="color:#81c784;">0</b>本</div>
+    </div>
+
+    <!-- 右上ミニマップ -->
+    <div id="minimapBox">
+        <canvas id="minimapCanvas" width="160" height="160"></canvas>
+    </div>
+
+    <!-- 設定・ブラシ・入出力ドロワー -->
+    <div id="drawerPanel">
+        <div class="section-box">
+            <div class="section-label">
+                <span>1. マップ基本情報</span>
+                <button style="padding:3px 8px; font-size:11px; background:#d32f2f;" onclick="toggleDrawer()">閉じる</button>
+            </div>
+            <div class="control-row">
+                <span>マップ名</span>
+                <input type="text" id="mapNameInput" value="KoE2 カスタムマップ">
+            </div>
+            <div class="hint-text">
+                ※制限時間・自軍人数・復活速度などはKoE2本編の「ゲーム設定」画面で自由に調整できます。
+            </div>
+        </div>
+
+        <div class="section-box">
+            <div class="section-label">
+                <span>2. ブラシ＆施設設定</span>
+                <label style="display:flex; align-items:center; gap:4px; color:#ccc; font-weight:normal;">
+                    <input type="checkbox" id="gridToggle" checked> グリッド
+                </label>
+            </div>
+            <div class="control-row">
+                <span>配置する塔のHP</span>
+                <select id="towerHpSelect">
+                    <option value="500" selected>通常塔 (HP 500)</option>
+                    <option value="600">前衛塔 (HP 600)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <span>ブラシ半径</span>
+                <input type="range" id="brushRadiusSlider" min="20" max="250" value="95" oninput="updateBrushSettings()">
+                <span id="brushRadiusVal" style="width:34px; text-align:right;">95</span>
+            </div>
+            <div class="control-row">
+                <span>森林密度</span>
+                <input type="range" id="treeSpacingSlider" min="32" max="90" value="42" oninput="updateBrushSettings()">
+                <span id="treeSpacingVal" style="width:38px; text-align:right;">42px</span>
+            </div>
+        </div>
+
+        <div class="section-box">
+            <div class="section-label">3. 配置オブジェクト集計</div>
+            <div class="stats-grid">
+                <span>木の本数: <b id="statTrees">0</b></span>
+                <span>総木材量: <b id="statTotalWood">0</b></span>
+                <span>防衛塔: <b id="statTowers" class="enemy-num">5</b> <span style="font-size:10px;">(2~10)</span></span>
+                <span>敵神殿: <b class="enemy-num">3 (固定)</b></span>
+                <span>自軍開始: <b id="statPlayerPos" class="player-num">(450,2500)</b></span>
+                <span>敵町の中心: <b id="statEnemyTCPos" class="enemy-num">(2180,700)</b></span>
+            </div>
+        </div>
+
+        <div class="section-box">
+            <div class="section-label">4. 保存 / 読込 / 森林自動生成</div>
+            <button class="action-primary" onclick="exportMapJSON()">KoE2用マップJSONをダウンロード</button>
+            <button onclick="showJSONModal()">JSONテキスト表示・コピー</button>
+            <button onclick="document.getElementById('fileInput').click()">JSONファイルを読込 (再編集)</button>
+            <input type="file" id="fileInput" accept=".json" style="display:none" onchange="importMapJSON(event)">
+            <div class="control-row" style="margin-top:2px;">
+                <span>森林自動生成量</span>
+                <select id="randomWoodLevelSelect">
+                    <option value="1">1（非常に少ない）</option>
+                    <option value="2">2（少ない）</option>
+                    <option value="3">3（やや少ない）</option>
+                    <option value="4" selected>4（普通）</option>
+                    <option value="5">5（やや多い）</option>
+                    <option value="6">6（多い）</option>
+                    <option value="7">7（非常に多い）</option>
+                </select>
+            </div>
+            <div class="btn-grid-2">
+                <button onclick="generateRandomKoE2Forests()">森林を自動生成</button>
+                <button class="action-warn" onclick="clearAllMap()">標準マップに戻す</button>
+            </div>
+            <button style="background:#546e7a; margin-top:2px;" onclick="location.href='index_5.html'">タイトルメニューへ</button>
+        </div>
+
+        <div style="font-size:11px; color:#aaa; line-height:1.45; padding:0 4px;">
+            【iPhone 操作方法】<br>
+            ・<b>1本指タップ/ドラッグ</b>：選択中のツールで配置・移動・消去<br>
+            ・<b>2本指ピンチ＆ドラッグ</b>：マップ拡大縮小・移動<br>
+            ・<b>右上ミニマップ</b>：タップ/ドラッグで視点ジャンプ
+        </div>
+    </div>
+
+    <!-- 下部クイックツールバー -->
+    <div id="bottomQuickBar">
+        <button id="tool-forest" class="active-tool" onclick="selectTool('forest')">森林ブラシ</button>
+        <button id="tool-treeSingle" onclick="selectTool('treeSingle')">木(1本)</button>
+        <button id="tool-eraser" class="tool-erase" onclick="selectTool('eraser')">消しゴム</button>
+        <button id="tool-enemyTower" class="tool-tower" onclick="selectTool('enemyTower')">防衛塔</button>
+        <button id="tool-playerStart" class="tool-player" onclick="selectTool('playerStart')">自軍開始</button>
+        <button id="tool-enemyTC" class="tool-enemy" onclick="selectTool('enemyTC')">敵町の中心</button>
+        <button id="tool-enemyShrine0" class="tool-enemy" onclick="selectTool('enemyShrine0')">敵神殿①</button>
+        <button id="tool-enemyShrine1" class="tool-enemy" onclick="selectTool('enemyShrine1')">敵神殿②</button>
+        <button id="tool-enemyShrine2" class="tool-enemy" onclick="selectTool('enemyShrine2')">敵神殿③</button>
+    </div>
+</div>
+
+<!-- JSONテキスト表示・コピー用モーダル -->
+<div id="jsonTextModal">
+    <div class="modal-inner">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; color:#fff;">
+            <span>KoE2用 マップJSONデータ</span>
+            <button style="padding:5px 10px; background:#d32f2f;" onclick="closeJSONModal()">閉じる</button>
+        </div>
+        <textarea id="jsonOutputArea" readonly></textarea>
+        <button class="action-primary" onclick="copyJSONFromTextarea()">クリップボードにコピー</button>
+    </div>
+</div>
+
+<script>
+    const WORLD_WIDTH = 3000;
+    const WORLD_HEIGHT = 3000;
+
+    // KoE2 本編の標準座標・サイズ定数
+    const DEFAULT_PLAYER_START = { x: 450, y: 2500 };
+    const DEFAULT_ENEMY_TC = { x: 2180, y: 700, width: 140, height: 100 };
+    const DEFAULT_ENEMY_SHRINES = [
+        { x: 1930, y: 600,  width: 90, height: 90 },
+        { x: 2480, y: 600,  width: 90, height: 90 },
+        { x: 2205, y: 1000, width: 90, height: 90 }
+    ];
+    const DEFAULT_TOWER_POSITIONS = [
+        { x: 1850, y: 1150, hp: 600 },
+        { x: 2050, y: 950,  hp: 500 },
+        { x: 2390, y: 950,  hp: 500 },
+        { x: 2050, y: 550,  hp: 500 },
+        { x: 2390, y: 550,  hp: 500 }
+    ];
+
+    const canvas = document.getElementById('editorCanvas');
+    const ctx = canvas.getContext('2d');
+    const miniCanvas = document.getElementById('minimapCanvas');
+    const miniCtx = miniCanvas.getContext('2d');
+
+    let zoom = 0.45;
+    let camera = { x: 0, y: 1800 };
+
+    // KoE2 マップデータ構造
+    let mapData = {
+        playerStart: { ...DEFAULT_PLAYER_START },
+        enemyTownCenter: { ...DEFAULT_ENEMY_TC },
+        enemyShrines: DEFAULT_ENEMY_SHRINES.map(s => ({ ...s })),
+        enemyTowers: DEFAULT_TOWER_POSITIONS.map(t => ({ x: t.x, y: t.y, width: 60, height: 60, hp: t.hp })),
+        trees: [] // [{ x, y, amount: 150 }]
+    };
+
+    let undoStack = [];
+    const MAX_UNDO = 30;
+
+    function pushUndoState() {
+        undoStack.push(JSON.stringify(mapData));
+        if (undoStack.length > MAX_UNDO) {
+            undoStack.shift();
+        }
+        document.getElementById('undoBtn').disabled = undoStack.length === 0;
+    }
+
+    function undo() {
+        if (undoStack.length === 0) return;
+        const prev = undoStack.pop();
+        mapData = JSON.parse(prev);
+        document.getElementById('undoBtn').disabled = undoStack.length === 0;
+        updateStats();
+    }
+
+    let currentTool = 'forest';
+    let brushRadius = 95;
+    let treeSpacing = 42;
+
+    let pointerWorldX = 1500, pointerWorldY = 1500;
+    let showBrushPreview = false;
+
+    function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.max(1, Math.round(rect.width || window.innerWidth));
+        canvas.height = Math.max(1, Math.round(rect.height || window.innerHeight));
+        clampCamera();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+    resizeCanvas();
+
+    function toggleDrawer() {
+        document.getElementById('drawerPanel').classList.toggle('open');
+    }
+
+    function selectTool(tool) {
+        currentTool = tool;
+        document.querySelectorAll('#bottomQuickBar button').forEach(btn => {
+            btn.classList.remove('active-tool');
+        });
+        const targetBtn = document.getElementById('tool-' + tool);
+        if (targetBtn) targetBtn.classList.add('active-tool');
+    }
+
+    function updateBrushSettings() {
+        brushRadius = parseInt(document.getElementById('brushRadiusSlider').value, 10);
+        treeSpacing = parseInt(document.getElementById('treeSpacingSlider').value, 10);
+        document.getElementById('brushRadiusVal').innerText = brushRadius;
+        document.getElementById('treeSpacingVal').innerText = treeSpacing + 'px';
+    }
+
+    function setZoom(newZoom, focusClientX = null, focusClientY = null) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = (focusClientX !== null) ? (focusClientX - rect.left) * (canvas.width / rect.width) : canvas.width / 2;
+        const cy = (focusClientY !== null) ? (focusClientY - rect.top) * (canvas.height / rect.height) : canvas.height / 2;
+
+        const clamped = Math.max(0.22, Math.min(2.2, newZoom));
+        const worldFocusX = camera.x + cx / zoom;
+        const worldFocusY = camera.y + cy / zoom;
+        zoom = clamped;
+        camera.x = worldFocusX - cx / zoom;
+        camera.y = worldFocusY - cy / zoom;
+        clampCamera();
+        document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + '%';
+    }
+
+    function clampCamera() {
+        const viewW = canvas.width / zoom;
+        const viewH = canvas.height / zoom;
+        camera.x = Math.max(-250, Math.min(WORLD_WIDTH - viewW + 250, camera.x));
+        camera.y = Math.max(-250, Math.min(WORLD_HEIGHT - viewH + 250, camera.y));
+    }
+
+    function focusCameraOnPlayer() {
+        camera.x = mapData.playerStart.x - (canvas.width / zoom) / 2;
+        camera.y = mapData.playerStart.y - (canvas.height / zoom) / 2;
+        clampCamera();
+    }
+
+    function focusCameraOnEnemy() {
+        camera.x = (mapData.enemyTownCenter.x + 70) - (canvas.width / zoom) / 2;
+        camera.y = (mapData.enemyTownCenter.y + 50) - (canvas.height / zoom) / 2;
+        clampCamera();
+    }
+
+    function screenToWorld(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
+        return {
+            x: camera.x + canvasX / zoom,
+            y: camera.y + canvasY / zoom
+        };
+    }
+
+    function updateCoordDisplay(wx, wy) {
+        document.getElementById('hudX').innerText = Math.max(0, Math.min(WORLD_WIDTH, Math.round(wx)));
+        document.getElementById('hudY').innerText = Math.max(0, Math.min(WORLD_HEIGHT, Math.round(wy)));
+    }
+
+    // KoE2本編と同じ保護領域チェック（木と敵建設物・自軍初期位置の重複防止）
+    function isTreeOverlappingProtectedArea(treeX, treeY, treeSize = 32) {
+        const pad = 55;
+        const tx1 = treeX, ty1 = treeY, tx2 = treeX + treeSize, ty2 = treeY + treeSize;
+
+        // 自軍初期位置の周辺安全圏
+        if (Math.hypot((treeX + 16) - mapData.playerStart.x, (treeY + 16) - mapData.playerStart.y) < 350) {
+            return true;
+        }
+
+        // 敵建設物（町の中心・神殿3つ・防衛塔）
+        const enemyBuildings = [mapData.enemyTownCenter, ...mapData.enemyShrines, ...mapData.enemyTowers];
+        for (let i = 0; i < enemyBuildings.length; i++) {
+            const b = enemyBuildings[i];
+            if (tx2 > b.x - pad && tx1 < b.x + b.width + pad &&
+                ty2 > b.y - pad && ty1 < b.y + b.height + pad) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function initDefaultMap() {
+        mapData.playerStart = { ...DEFAULT_PLAYER_START };
+        mapData.enemyTownCenter = { ...DEFAULT_ENEMY_TC };
+        mapData.enemyShrines = DEFAULT_ENEMY_SHRINES.map(s => ({ ...s }));
+        mapData.enemyTowers = DEFAULT_TOWER_POSITIONS.map(t => ({
+            x: t.x, y: t.y, width: 60, height: 60, hp: t.hp
+        }));
+        mapData.trees = [];
+
+        generateTreesByLevel(4);
+
+        undoStack = [];
+        document.getElementById('undoBtn').disabled = true;
+        focusCameraOnEnemy();
+        updateStats();
+    }
+
+    function clearAllMap() {
+        if (!confirm('現在の配置をリセットし、KoE2標準マップの初期配置に戻しますか？')) return;
+        pushUndoState();
+        initDefaultMap();
+    }
+
+    function generateTreesByLevel(woodLevel) {
+        const clusterCounts = { 1: 8, 2: 15, 3: 22, 4: 30, 5: 40, 6: 50, 7: 60 };
+        const totalClusters = clusterCounts[woodLevel] || 30;
+        const tcCenterX = mapData.enemyTownCenter.x + 70;
+        const tcCenterY = mapData.enemyTownCenter.y + 50;
+
+        for (let c = 0; c < totalClusters; c++) {
+            let forestX = 250 + Math.random() * 2500;
+            let forestY = 250 + Math.random() * 2500;
+            if (Math.hypot(forestX - mapData.playerStart.x, forestY - mapData.playerStart.y) < 350) continue;
+            if (Math.hypot(forestX - tcCenterX, forestY - tcCenterY) < 420) continue;
+
+            for (let i = 0; i < 14; i++) {
+                let tx = Math.round(forestX + (Math.random() - 0.5) * 120);
+                let ty = Math.round(forestY + (Math.random() - 0.5) * 120);
+                if (tx < 20 || ty < 20 || tx > WORLD_WIDTH - 52 || ty > WORLD_HEIGHT - 52) continue;
+                if (!isTreeOverlappingProtectedArea(tx, ty, 32)) {
+                    mapData.trees.push({ x: tx, y: ty, amount: 150 });
+                }
+            }
+        }
+    }
+
+    function generateRandomKoE2Forests() {
+        if (!confirm('現在の木をすべて消去して、現在の拠点配置を避けながら森林を自動生成しますか？')) return;
+        pushUndoState();
+        mapData.trees = [];
+        const lvl = parseInt(document.getElementById('randomWoodLevelSelect').value, 10) || 4;
+        generateTreesByLevel(lvl);
+        updateStats();
+    }
+
+    function removeTreesOverlappingBuilding(b) {
+        const pad = 40;
+        mapData.trees = mapData.trees.filter(t => {
+            const overlap = (t.x + 32 > b.x - pad && t.x < b.x + b.width + pad &&
+                             t.y + 32 > b.y - pad && t.y < b.y + b.height + pad);
+            return !overlap;
+        });
+    }
+
+    function applyToolAt(wx, wy, isDrag = false) {
+        if (wx < 0 || wx > WORLD_WIDTH || wy < 0 || wy > WORLD_HEIGHT) return;
+
+        if (currentTool === 'playerStart') {
+            mapData.playerStart.x = Math.round(Math.max(120, Math.min(WORLD_WIDTH - 120, wx)));
+            mapData.playerStart.y = Math.round(Math.max(120, Math.min(WORLD_HEIGHT - 120, wy)));
+        }
+        else if (currentTool === 'enemyTC') {
+            mapData.enemyTownCenter.x = Math.round(Math.max(10, Math.min(WORLD_WIDTH - 150, wx - 70)));
+            mapData.enemyTownCenter.y = Math.round(Math.max(10, Math.min(WORLD_HEIGHT - 110, wy - 50)));
+            removeTreesOverlappingBuilding(mapData.enemyTownCenter);
+        }
+        else if (currentTool.startsWith('enemyShrine')) {
+            const idx = parseInt(currentTool.replace('enemyShrine', ''), 10);
+            if (mapData.enemyShrines[idx]) {
+                mapData.enemyShrines[idx].x = Math.round(Math.max(10, Math.min(WORLD_WIDTH - 100, wx - 45)));
+                mapData.enemyShrines[idx].y = Math.round(Math.max(10, Math.min(WORLD_HEIGHT - 100, wy - 45)));
+                removeTreesOverlappingBuilding(mapData.enemyShrines[idx]);
+            }
+        }
+        else if (currentTool === 'enemyTower' && !isDrag) {
+            if (mapData.enemyTowers.length >= 10) {
+                alert('防衛塔は最大10塔まで配置できます！（増やす場合は消しゴムで既存の塔を消してください）');
+                return;
+            }
+            const tx = Math.round(Math.max(10, Math.min(WORLD_WIDTH - 70, wx - 30)));
+            const ty = Math.round(Math.max(10, Math.min(WORLD_HEIGHT - 70, wy - 30)));
+            const hpVal = parseInt(document.getElementById('towerHpSelect').value, 10) || 500;
+            const newTower = { x: tx, y: ty, width: 60, height: 60, hp: hpVal };
+            mapData.enemyTowers.push(newTower);
+            removeTreesOverlappingBuilding(newTower);
+        }
+        else if (currentTool === 'forest') {
+            const attempts = Math.max(3, Math.floor(brushRadius / 18));
+            for (let i = 0; i < attempts; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * Math.max(0, brushRadius - 16);
+                const tx = Math.round(wx + Math.cos(angle) * dist - 16);
+                const ty = Math.round(wy + Math.sin(angle) * dist - 16);
+
+                if (tx < 10 || ty < 10 || tx > WORLD_WIDTH - 42 || ty > WORLD_HEIGHT - 42) continue;
+                if (isTreeOverlappingProtectedArea(tx, ty, 32)) continue;
+
+                const tooClose = mapData.trees.some(t => Math.hypot(t.x - tx, t.y - ty) < treeSpacing);
+                if (!tooClose) {
+                    mapData.trees.push({ x: tx, y: ty, amount: 150 });
+                }
+            }
+        }
+        else if (currentTool === 'treeSingle' && !isDrag) {
+            const tx = Math.round(Math.max(10, Math.min(WORLD_WIDTH - 42, wx - 16)));
+            const ty = Math.round(Math.max(10, Math.min(WORLD_HEIGHT - 42, wy - 16)));
+            if (isTreeOverlappingProtectedArea(tx, ty, 32)) {
+                alert('敵の建設物や自軍開始地点の近くには木を配置できません！');
+                return;
+            }
+            mapData.trees.push({ x: tx, y: ty, amount: 150 });
+        }
+        else if (currentTool === 'eraser') {
+            const r = brushRadius;
+            mapData.trees = mapData.trees.filter(t => Math.hypot((t.x + 16) - wx, (t.y + 16) - wy) > r);
+            mapData.enemyTowers = mapData.enemyTowers.filter(tw => Math.hypot((tw.x + 30) - wx, (tw.y + 30) - wy) > r);
+        }
+
+        updateStats();
+    }
+
+    function updateStats() {
+        const treeCount = mapData.trees.length;
+        const totalWood = mapData.trees.reduce((sum, t) => sum + (t.amount || 150), 0);
+        const towerCount = mapData.enemyTowers.length;
+
+        document.getElementById('statTrees').innerText = treeCount.toLocaleString();
+        document.getElementById('hudTreeCount').innerText = treeCount.toLocaleString();
+        document.getElementById('statTotalWood').innerText = totalWood.toLocaleString();
+
+        const towerEl = document.getElementById('statTowers');
+        const hudTowerEl = document.getElementById('hudTowerCount');
+        towerEl.innerText = towerCount;
+        hudTowerEl.innerText = towerCount;
+
+        if (towerCount < 2 || towerCount > 10) {
+            towerEl.className = 'warn-num';
+            hudTowerEl.style.color = '#ffab40';
+        } else {
+            towerEl.className = 'enemy-num';
+            hudTowerEl.style.color = '#ef9a9a';
+        }
+
+        document.getElementById('statPlayerPos').innerText = `(${mapData.playerStart.x},${mapData.playerStart.y})`;
+        document.getElementById('statEnemyTCPos').innerText = `(${mapData.enemyTownCenter.x},${mapData.enemyTownCenter.y})`;
+    }
+
+    function validateBeforeExport() {
+        if (mapData.enemyTowers.length < 2 || mapData.enemyTowers.length > 10) {
+            alert(`現在、防衛塔が ${mapData.enemyTowers.length} 塔配置されています。\nKoE2本編の仕様に合わせて防衛塔を 2〜10 塔の範囲に調整してください。`);
+            return false;
+        }
+        return true;
+    }
+
+    // KoE2 本編 (initGame / handleMapFileLoad) に完全適合するJSONを生成
+    function buildExportPayload() {
+        return {
+            formatVersion: 2,
+            game: 'KoE2',
+            mapName: document.getElementById('mapNameInput').value.trim() || 'KoE2 カスタムマップ',
+            worldSize: { width: WORLD_WIDTH, height: WORLD_HEIGHT },
+            playerStart: {
+                x: mapData.playerStart.x,
+                y: mapData.playerStart.y
+            },
+            enemyTownCenter: {
+                x: mapData.enemyTownCenter.x,
+                y: mapData.enemyTownCenter.y
+            },
+            enemyShrines: mapData.enemyShrines.map(s => ({
+                x: s.x,
+                y: s.y
+            })),
+            enemyTowers: mapData.enemyTowers.map(t => ({
+                x: t.x,
+                y: t.y,
+                hp: t.hp || 500
+            })),
+            trees: mapData.trees.map(t => ({
+                x: t.x,
+                y: t.y,
+                amount: t.amount || 150
+            }))
+        };
+    }
+
+    function exportMapJSON() {
+        if (!validateBeforeExport()) return;
+        const payload = buildExportPayload();
+        const jsonStr = JSON.stringify(payload, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const safeName = payload.mapName.replace(/[\\/:*?"<>|]/g, '_');
+        a.href = url;
+        a.download = `${safeName}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function showJSONModal() {
+        if (!validateBeforeExport()) return;
+        const payload = buildExportPayload();
+        document.getElementById('jsonOutputArea').value = JSON.stringify(payload, null, 2);
+        document.getElementById('jsonTextModal').style.display = 'flex';
+    }
+
+    function closeJSONModal() {
+        document.getElementById('jsonTextModal').style.display = 'none';
+    }
+
+    function copyJSONFromTextarea() {
+        const textarea = document.getElementById('jsonOutputArea');
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(textarea.value).then(() => {
+                alert('KoE2用マップJSONをクリップボードにコピーしました！');
+            }).catch(() => {
+                document.execCommand('copy');
+                alert('JSONをコピーしました！');
+            });
+        } else {
+            document.execCommand('copy');
+            alert('JSONをコピーしました！');
+        }
+    }
+
+    function importMapJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                pushUndoState();
+
+                if (parsed.mapName) {
+                    document.getElementById('mapNameInput').value = parsed.mapName;
+                }
+                if (parsed.playerStart && typeof parsed.playerStart.x === 'number') {
+                    mapData.playerStart = { x: parsed.playerStart.x, y: parsed.playerStart.y };
+                }
+                if (parsed.enemyTownCenter && typeof parsed.enemyTownCenter.x === 'number') {
+                    mapData.enemyTownCenter = {
+                        x: parsed.enemyTownCenter.x,
+                        y: parsed.enemyTownCenter.y,
+                        width: 140,
+                        height: 100
+                    };
+                }
+                if (Array.isArray(parsed.enemyShrines)) {
+                    for (let i = 0; i < 3; i++) {
+                        if (parsed.enemyShrines[i]) {
+                            mapData.enemyShrines[i] = {
+                                x: parsed.enemyShrines[i].x,
+                                y: parsed.enemyShrines[i].y,
+                                width: 90,
+                                height: 90
+                            };
+                        }
+                    }
+                }
+                if (Array.isArray(parsed.enemyTowers)) {
+                    mapData.enemyTowers = parsed.enemyTowers.slice(0, 10).map((t, idx) => ({
+                        x: t.x,
+                        y: t.y,
+                        width: 60,
+                        height: 60,
+                        hp: t.hp || (idx === 0 ? 600 : 500)
+                    }));
+                }
+                if (Array.isArray(parsed.trees)) {
+                    mapData.trees = parsed.trees.map(t => ({
+                        x: t.x,
+                        y: t.y,
+                        amount: t.amount || 150
+                    }));
+                }
+
+                focusCameraOnEnemy();
+                updateStats();
+                toggleDrawer();
+                alert('KoE2マップJSONを読み込みました！');
+            } catch (err) {
+                alert('JSONの読み込みに失敗しました。ファイル形式を確認してください。');
+            }
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    // ==========================================
+    // iPhoneマルチタッチ＆マウス入力処理
+    // ==========================================
+    let isOneFingerDrawing = false;
+    let isTwoFingerPinching = false;
+    let lastPinchDist = 0;
+    let lastPinchMid = { x: 0, y: 0 };
+
+    document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', e => e.preventDefault(), { passive: false });
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (document.getElementById('drawerPanel').classList.contains('open')) {
+            document.getElementById('drawerPanel').classList.remove('open');
+        }
+
+        if (e.touches.length === 1) {
+            isTwoFingerPinching = false;
+            isOneFingerDrawing = true;
+            const t = e.touches[0];
+            const wPos = screenToWorld(t.clientX, t.clientY);
+            pointerWorldX = wPos.x;
+            pointerWorldY = wPos.y;
+            updateCoordDisplay(wPos.x, wPos.y);
+            showBrushPreview = true;
+            pushUndoState();
+            applyToolAt(wPos.x, wPos.y, false);
+        } else if (e.touches.length === 2) {
+            if (isOneFingerDrawing) {
+                isOneFingerDrawing = false;
+                undo();
+            }
+            showBrushPreview = false;
+            isTwoFingerPinching = true;
+            const t1 = e.touches[0], t2 = e.touches[1];
+            lastPinchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+            lastPinchMid = {
+                x: (t1.clientX + t2.clientX) / 2,
+                y: (t1.clientY + t2.clientY) / 2
+            };
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isOneFingerDrawing) {
+            const t = e.touches[0];
+            const wPos = screenToWorld(t.clientX, t.clientY);
+            pointerWorldX = wPos.x;
+            pointerWorldY = wPos.y;
+            updateCoordDisplay(wPos.x, wPos.y);
+            applyToolAt(wPos.x, wPos.y, true);
+        } else if (e.touches.length === 2 && isTwoFingerPinching) {
+            const t1 = e.touches[0], t2 = e.touches[1];
+            const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+            const mid = {
+                x: (t1.clientX + t2.clientX) / 2,
+                y: (t1.clientY + t2.clientY) / 2
+            };
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const dx = ((mid.x - lastPinchMid.x) * scaleX) / zoom;
+            const dy = ((mid.y - lastPinchMid.y) * scaleY) / zoom;
+            camera.x -= dx;
+            camera.y -= dy;
+
+            if (lastPinchDist > 10) {
+                const scaleFactor = dist / lastPinchDist;
+                setZoom(zoom * scaleFactor, mid.x, mid.y);
+            } else {
+                clampCamera();
+            }
+
+            lastPinchDist = dist;
+            lastPinchMid = mid;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 0) {
+            isOneFingerDrawing = false;
+            isTwoFingerPinching = false;
+            showBrushPreview = false;
+        } else if (e.touches.length === 1 && isTwoFingerPinching) {
+            isTwoFingerPinching = false;
+        }
+    }, { passive: false });
+
+    // マウス操作（PC確認用）
+    let isMouseDown = false;
+    let isRightPanning = false;
+    let panStart = { x: 0, y: 0 };
+    let camStart = { x: 0, y: 0 };
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 2 || e.button === 1) {
+            isRightPanning = true;
+            panStart = { x: e.clientX, y: e.clientY };
+            camStart = { x: camera.x, y: camera.y };
+            return;
+        }
+        if (e.button === 0) {
+            const wPos = screenToWorld(e.clientX, e.clientY);
+            pointerWorldX = wPos.x;
+            pointerWorldY = wPos.y;
+            updateCoordDisplay(wPos.x, wPos.y);
+            showBrushPreview = true;
+            isMouseDown = true;
+            pushUndoState();
+            applyToolAt(wPos.x, wPos.y, false);
+        }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        const wPos = screenToWorld(e.clientX, e.clientY);
+        pointerWorldX = wPos.x;
+        pointerWorldY = wPos.y;
+        updateCoordDisplay(wPos.x, wPos.y);
+        if (isRightPanning) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            camera.x = camStart.x - ((e.clientX - panStart.x) * scaleX) / zoom;
+            camera.y = camStart.y - ((e.clientY - panStart.y) * scaleY) / zoom;
+            clampCamera();
+            return;
+        }
+        if (isMouseDown) {
+            applyToolAt(wPos.x, wPos.y, true);
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        isMouseDown = false;
+        isRightPanning = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.87;
+        setZoom(zoom * factor, e.clientX, e.clientY);
+    }, { passive: false });
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    // ミニマップ操作
+    function moveCameraFromMinimap(clientX, clientY) {
+        const rect = miniCanvas.getBoundingClientRect();
+        const mx = clientX - rect.left;
+        const my = clientY - rect.top;
+        const wx = (mx / rect.width) * WORLD_WIDTH;
+        const wy = (my / rect.height) * WORLD_HEIGHT;
+        camera.x = wx - (canvas.width / zoom) / 2;
+        camera.y = wy - (canvas.height / zoom) / 2;
+        clampCamera();
+    }
+
+    miniCanvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.touches.length > 0) {
+            moveCameraFromMinimap(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    miniCanvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.touches.length > 0) {
+            moveCameraFromMinimap(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    let isMiniMouseDown = false;
+    miniCanvas.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isMiniMouseDown = true;
+        moveCameraFromMinimap(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (isMiniMouseDown) moveCameraFromMinimap(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', () => {
+        isMiniMouseDown = false;
+    });
+
+    // ==========================================
+    // 描画ループ
+    // ==========================================
+    function drawBuildingBox(b, fillColor, strokeColor, labelText, subText = '') {
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(b.x, b.y, b.width, b.height);
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(b.x, b.y, b.width, b.height);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (subText) {
+            ctx.fillText(labelText, b.x + b.width / 2, b.y + b.height / 2 - 8);
+            ctx.font = '11px sans-serif';
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillText(subText, b.x + b.width / 2, b.y + b.height / 2 + 10);
+        } else {
+            ctx.fillText(labelText, b.x + b.width / 2, b.y + b.height / 2);
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = '#0d0d0d';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.scale(zoom, zoom);
+        ctx.translate(-camera.x, -camera.y);
+
+        // 草原フィールド（KoE2本編と同色）
+        ctx.fillStyle = '#31572c';
+        ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        // グリッドと中央境界線
+        if (document.getElementById('gridToggle').checked) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = 1 / zoom;
+            for (let x = 0; x <= WORLD_WIDTH; x += 250) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= WORLD_HEIGHT; y += 250) {
+                ctx.beginPath();
+                ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = 'rgba(255, 235, 59, 0.22)';
+            ctx.lineWidth = 2 / zoom;
+            ctx.setLineDash([12, 12]);
+            ctx.beginPath();
+            ctx.moveTo(WORLD_WIDTH / 2, 0); ctx.lineTo(WORLD_WIDTH / 2, WORLD_HEIGHT);
+            ctx.moveTo(0, WORLD_HEIGHT / 2); ctx.lineTo(WORLD_WIDTH, WORLD_HEIGHT / 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // マップ外枠
+        ctx.strokeStyle = '#ffeb3b';
+        ctx.lineWidth = 4 / zoom;
+        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        // 自軍開始地点（安全圏円＆工作兵展開イメージ）
+        const ps = mapData.playerStart;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(ps.x, ps.y, 350, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(2, 136, 209, 0.08)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(129, 212, 250, 0.45)';
+        ctx.lineWidth = 2 / zoom;
+        ctx.setLineDash([8, 8]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 工作兵プレビュー配置（サンプル表示）
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 6; c++) {
+                const ux = ps.x + c * 26;
+                const uy = ps.y + r * 26;
+                ctx.beginPath();
+                ctx.arc(ux, uy, 14, 0, Math.PI * 2);
+                ctx.fillStyle = '#0288d1';
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('工', ux, uy);
+            }
+        }
+        ctx.fillStyle = '#81d4fa';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('自軍開始地点 (工作兵出現位置)', ps.x + 65, ps.y - 28);
+        ctx.restore();
+
+        // 敵 町の中心（140x100, #880e4f）
+        drawBuildingBox(mapData.enemyTownCenter, '#880e4f', '#ffffff', '敵 町の中心', 'HP 1500');
+
+        // 敵 神殿①〜③（90x90, #ad1457）
+        mapData.enemyShrines.forEach((es, idx) => {
+            drawBuildingBox(es, '#ad1457', '#ffffff', `敵 神殿${['①','②','③'][idx]}`, 'HP 800');
+        });
+
+        // 防衛塔（60x60, #616161）
+        mapData.enemyTowers.forEach((tw, idx) => {
+            drawBuildingBox(tw, '#616161', '#ffffff', '防衛塔', `#${idx + 1} (${tw.hp})`);
+        });
+
+        // 木材（32x32, #1b4320）
+        mapData.trees.forEach(t => {
+            ctx.fillStyle = '#1b4320';
+            ctx.fillRect(t.x, t.y, 32, 32);
+            ctx.strokeStyle = '#0d2311';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(t.x, t.y, 32, 32);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('木', t.x + 16, t.y + 16);
+        });
+
+        // ブラシ範囲プレビュー
+        if (showBrushPreview && (currentTool === 'forest' || currentTool === 'eraser')) {
+            ctx.beginPath();
+            ctx.arc(pointerWorldX, pointerWorldY, brushRadius, 0, Math.PI * 2);
+            if (currentTool === 'forest') {
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+                ctx.strokeStyle = '#81c784';
+            } else {
+                ctx.fillStyle = 'rgba(229, 57, 53, 0.25)';
+                ctx.strokeStyle = '#ef9a9a';
+            }
+            ctx.lineWidth = 2 / zoom;
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        ctx.restore();
+        drawMinimap();
+        requestAnimationFrame(draw);
+    }
+
+    function drawMinimap() {
+        const scale = miniCanvas.width / WORLD_WIDTH;
+        miniCtx.fillStyle = '#31572c';
+        miniCtx.fillRect(0, 0, miniCanvas.width, miniCanvas.height);
+
+        // 木
+        miniCtx.fillStyle = '#143318';
+        mapData.trees.forEach(t => {
+            miniCtx.fillRect(t.x * scale, t.y * scale, 2, 2);
+        });
+
+        // 自軍開始地点
+        miniCtx.fillStyle = '#29b6f6';
+        miniCtx.beginPath();
+        miniCtx.arc(mapData.playerStart.x * scale, mapData.playerStart.y * scale, 5, 0, Math.PI * 2);
+        miniCtx.fill();
+
+        // 敵 町の中心
+        miniCtx.fillStyle = '#d81b60';
+        miniCtx.fillRect(
+            mapData.enemyTownCenter.x * scale,
+            mapData.enemyTownCenter.y * scale,
+            mapData.enemyTownCenter.width * scale,
+            mapData.enemyTownCenter.height * scale
+        );
+
+        // 敵 神殿
+        miniCtx.fillStyle = '#f06292';
+        mapData.enemyShrines.forEach(es => {
+            miniCtx.fillRect(es.x * scale, es.y * scale, es.width * scale, es.height * scale);
+        });
+
+        // 防衛塔
+        miniCtx.fillStyle = '#bdbdbd';
+        mapData.enemyTowers.forEach(tw => {
+            miniCtx.fillRect(tw.x * scale, tw.y * scale, Math.max(2.5, tw.width * scale), Math.max(2.5, tw.height * scale));
+        });
+
+        // カメラ表示枠
+        miniCtx.strokeStyle = '#ffeb3b';
+        miniCtx.lineWidth = 1.5;
+        miniCtx.strokeRect(
+            camera.x * scale,
+            camera.y * scale,
+            (canvas.width / zoom) * scale,
+            (canvas.height / zoom) * scale
+        );
+    }
+
+    initDefaultMap();
+    draw();
+</script>
+</body>
+</html>
