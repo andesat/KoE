@@ -235,16 +235,15 @@
             right: max(8px, env(safe-area-inset-right));
             bottom: max(10px, env(safe-area-inset-bottom));
             width: 176px;
-            background-color: rgba(18, 22, 18, 0.74);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            background-color: rgba(18, 22, 18, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.22);
             border-radius: 10px;
             padding: 8px 10px;
             color: #f1f1f1;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.85);
             font-size: 11px;
             line-height: 1.42;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
             pointer-events: none;
             z-index: 90;
         }
@@ -252,7 +251,7 @@
         .hud-time-bar-wrap {
             width: 100%;
             height: 17px;
-            background-color: #2b2b2b;
+            background-color: rgba(43, 43, 43, 0.65);
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 4px;
             position: relative;
@@ -281,7 +280,7 @@
 
         .hud-divider {
             border: none;
-            border-top: 1px dashed rgba(255, 255, 255, 0.25);
+            border-top: 1px dashed rgba(255, 255, 255, 0.28);
             margin: 4px 0;
         }
 
@@ -769,7 +768,7 @@
             <div class="modal-actions">
                 <button type="button" class="start-btn" id="btnStartNewGame" onclick="applySettingsAndStart(true)">この設定でゲーム開始</button>
                 <button type="button" class="resume-btn" id="btnResumeGame" style="display:none;" onclick="applySettingsAndStart(false)">設定を反映して再開</button>
-                <button type="button" class="menu-back-btn" onclick="location.href='index_5.html'">タイトルへ</button>
+                <button type="button" class="menu-back-btn" onclick="location.href='index.html'">タイトルへ</button>
             </div>
         </div>
     </div>
@@ -800,7 +799,7 @@
             <div class="result-actions">
                 <button type="button" class="result-btn map-btn" onclick="enterViewMapMode()">マップを眺める</button>
                 <button type="button" class="result-btn retry-btn" onclick="applySettingsAndStart(true)">再挑戦</button>
-                <button type="button" class="result-btn menu-btn" onclick="location.href='index_5.html'">メニューへ</button>
+                <button type="button" class="result-btn menu-btn" onclick="location.href='index.html'">メニューへ</button>
             </div>
         </div>
     </div>
